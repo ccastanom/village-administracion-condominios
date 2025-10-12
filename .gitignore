@@ -1,0 +1,29 @@
+# Python / FastAPI
+backend/.venv/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+
+# Entornos / secretos
+.env
+.env.*
+backend/.env
+
+# Logs / backups
+*.log
+backup.sql
+
+# Frontend / builds
+frontend/node_modules/
+dist/
+build/
+
+# SO / editores
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Otros
+*.sqlite
