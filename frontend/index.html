@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Village - Prototipo</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Village — Gestión de Condominios (Prototipo)</h1>
+      <p class="muted">Login → Usuarios → Reservas → Mantenimiento → Pagos (mock)</p>
+    </header>
+
+    <!-- 1) AUTENTICACIÓN -->
+    <section id="auth">
+      <h2>1) Autenticación</h2>
+      <div class="row">
+        <div class="card">
+          <h3>Registro</h3>
+          <input id="reg-name" placeholder="Nombre" />
+          <input id="reg-email" placeholder="Email" />
+          <input id="reg-pass" type="password" placeholder="Contraseña" />
+          <select id="reg-role">
+            <option value="resident">resident</option>
+            <option value="admin">admin</option>
+          </select>
+          <button onclick="register()">Registrar</button>
+          <pre id="reg-out"></pre>
+        </div>
+        <div class="card">
+          <h3>Login</h3>
+          <input id="log-email" placeholder="Email" />
+          <input id="log-pass" type="password" placeholder="Contraseña" />
+          <button onclick="login()">Entrar</button>
+          <pre id="log-out"></pre>
+          <button onclick="logout()">Salir</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2) USUARIOS (CRUD) -->
+    <section id="users" style="margin-top:24px;">
+      <h2>2) Usuarios (CRUD)</h2>
+      <div class="row">
+        <div class="card">
+          <h3>Crear / Actualizar / Eliminar</h3>
+          <div class="grid" style="display:grid; gap:8px; max-width:520px;">
+            <label>Nombre
+              <input id="usr-name" placeholder="Nombre" />
+            </label>
+            <label>Email
+              <input id="usr-email" type="email" placeholder="correo@demo.com" />
+            </label>
+            <label>Contraseña
+              <input id="usr-pass" type="password" placeholder="••••••" />
+            </label>
+            <label>Rol
+              <select id="usr-role">
+                <option value="resident" selected>resident</option>
+                <option value="admin">admin</option>
+              </select>
+            </label>
+            <label>ID (para editar/borrar)
+              <input id="usr-id" type="number" min="1" placeholder="ej. 2" />
+            </label>
+          </div>
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+            <button onclick="createUser()">Crear usuario</button>
+            <button onclick="listUsers()">Listar usuarios</button>
+            <button onclick="updateUser()">Actualizar usuario (por ID)</button>
+            <button onclick="deleteUser()">Eliminar usuario (por ID)</button>
+          </div>
+
+          <pre id="users-out" style="margin-top:12px;"></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3) DATOS BASE -->
+    <section id="data">
+      <h2>3) Datos base (admin)</h2>
+      <div class="row">
+        <div class="card">
+          <h3>Crear Amenidad</h3>
+          <input id="amenity-name" placeholder="Ej: Salón Social" />
+          <button onclick="createAmenity()">Crear</button>
+          <button onclick="listAmenities()">Listar</button>
+          <pre id="amenities-out"></pre>
+        </div>
+        <div class="card">
+          <h3>Crear Unidad</h3>
+          <input id="unit-code" placeholder="Ej: Torre A - 302" />
+          <input id="unit-owner" placeholder="owner_id (opcional)" />
+          <input id="unit-area" placeholder="area m2" />
+          <button onclick="createUnit()">Crear</button>
+          <button onclick="listUnits()">Listar</button>
+          <pre id="units-out"></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4) RESERVAS -->
+    <section id="reservations">
+      <h2>4) Reservas</h2>
+      <div class="row">
+        <div class="card">
+          <h3>Nueva Reserva</h3>
+          <input id="res-amenity" placeholder="amenity_id" />
+          <input id="res-user" placeholder="user_id" />
+          <input id="res-start" placeholder="start_at (YYYY-MM-DD HH:MM)" />
+          <input id="res-end" placeholder="end_at (YYYY-MM-DD HH:MM)" />
+          <button onclick="createReservation()">Reservar</button>
+        </div>
+        <div class="card">
+          <h3>Listado</h3>
+          <button onclick="listReservations()">Refrescar</button>
+          <pre id="reservations-out"></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 5) MANTENIMIENTO -->
+    <section id="tickets">
+      <h2>5) Mantenimiento</h2>
+      <div class="row">
+        <div class="card">
+          <h3>Nuevo Ticket</h3>
+          <input id="tk-user" placeholder="user_id" />
+          <input id="tk-unit" placeholder="unit_id (opcional)" />
+          <input id="tk-title" placeholder="Título" />
+          <textarea id="tk-desc" placeholder="Descripción"></textarea>
+          <button onclick="createTicket()">Crear</button>
+        </div>
+        <div class="card">
+          <h3>Listado</h3>
+          <button onclick="listTickets()">Refrescar</button>
+          <pre id="tickets-out"></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6) PAGOS -->
+    <section id="payments">
+      <h2>6) Pagos (mock)</h2>
+      <div class="row">
+        <div class="card">
+          <h3>Nuevo Pago</h3>
+          <input id="pay-user" placeholder="user_id" />
+          <input id="pay-unit" placeholder="unit_id (opcional)" />
+          <input id="pay-amount" placeholder="Monto" />
+          <select id="pay-method">
+            <option value="card">card</option>
+            <option value="cash">cash</option>
+            <option value="transfer">transfer</option>
+          </select>
+          <button onclick="createPayment()">Pagar</button>
+        </div>
+        <div class="card">
+          <h3>Historial</h3>
+          <button onclick="listPayments()">Refrescar</button>
+          <pre id="payments-out"></pre>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <small>Prototipo académico. No usar en producción.</small>
+    </footer>
+
+    <script src="./app.js?v=logout1"></script>
+  </body>
+</html>
+
+
