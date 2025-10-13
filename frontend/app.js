@@ -101,6 +101,7 @@ async function login() {
     document.getElementById("log-out").textContent = "OK: " + JSON.stringify(user);
     setRole(user.role || null);
     updateSessionBanner(user);
+    hideAuth();   // ⬅️ oculta el bloque de login/registro
   } catch (e) {
     document.getElementById("log-out").textContent = e.message;
   }
@@ -333,6 +334,10 @@ function logout() {
   if (emailInput) emailInput.value = "";
   if (passInput) passInput.value = "";
 
+  updateSessionBanner(null); // oculta el banner superior
+  showAuth();                // muestra de nuevo el bloque de login/registro
+
+
 }
 
 // exponemos la función para que el onclick del botón la encuentre
@@ -349,6 +354,40 @@ function updateSessionBanner(user) {
   document.getElementById("sb-role").textContent = user.role || "—";
   sb.style.display = "";
 }
+
+// ==== Mostrar / ocultar sección de autenticación ====
+function hideAuth() {
+  const auth = document.getElementById("auth");
+  if (auth) auth.style.display = "none";
+}
+function showAuth() {
+  const auth = document.getElementById("auth");
+  if (auth) auth.style.display = "";
+}
+
+// Restaurar sesión al cargar la página
+(async function bootstrapUI(){
+  const tk = getToken();
+  if (!tk) { showAuth(); return; }
+
+  // Intentar /api/auth/me. Si no existe, usar el rol guardado como fallback.
+  try {
+    const me = await api("/api/auth/me", "GET");
+    setRole(me.role || null);
+    updateSessionBanner(me);
+    hideAuth();
+  } catch {
+    // Fallback sin /me: solo con rol almacenado
+    const role = window.localStorage.getItem("village_user_role") || null;
+    if (role) {
+      setRole(role);
+      updateSessionBanner({ name: "Usuario", role });
+      hideAuth();
+    } else {
+      showAuth();
+    }
+  }
+})();
 
 
 window.logout = logout;

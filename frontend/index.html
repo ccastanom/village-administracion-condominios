@@ -25,21 +25,15 @@
 
     <main class="container">
       <p class="muted center">Login → Usuarios → Reservas → Mantenimiento → Pagos (mock)</p>
-        <!-- Banner de sesión actual -->
-    <section class="section" id="session-banner" style="display:none">
-      <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
-        <div>
-          <strong id="sb-name">—</strong>
-          <span class="muted">(<span id="sb-role">—</span>)</span>
-        </div>
-        <div class="actions">
-          <button class="ghost" onclick="listAmenities()">Amenities</button>
-          <button class="ghost" onclick="listUnits()">Unidades</button>
-          <button class="chip" onclick="logout()">Cerrar sesión</button>
-        </div>
-      </div>
-    </section>
-
+        <!-- Banner de sesión actual (solo nombre y rol) -->
+<section class="section" id="session-banner" style="display:none">
+  <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div>
+      <strong id="sb-name">—</strong>
+      <span class="muted">(<span id="sb-role">—</span>)</span>
+    </div>
+  </div>
+</section>
 
       <!-- 1) AUTENTICACIÓN -->
       <section id="auth" class="section">
@@ -285,7 +279,7 @@
         </div>
       </section>
 
-      <section class="section center">
+      <section class="section center" data-role="any" style="display:none">
         <button class="chip" onclick="logout()">Cerrar sesión</button>
       </section>
     </main>
