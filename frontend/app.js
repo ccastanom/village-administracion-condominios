@@ -1,8 +1,20 @@
 // === BASE DE LA API ===
 const API_BASE = "http://127.0.0.1:8000";
 
-let token = null;
+let token = window.localStorage.getItem("village_token") || null;
+let currentRole = window.localStorage.getItem("village_user_role") || null;
 
+// Visibilidad por rol (usa data-role="admin-only" | "user-only" | "any" en tu HTML)
+function applyRoleVisibility(role) {
+  document.querySelectorAll("[data-role]").forEach(el => (el.style.display = "none"));
+  if (!role) return;
+  document.querySelectorAll('[data-role="any"]').forEach(el => (el.style.display = ""));
+  if (role === "admin") document.querySelectorAll('[data-role="admin-only"]').forEach(el => (el.style.display = ""));
+  if (role === "user")  document.querySelectorAll('[data-role="user-only"]').forEach(el => (el.style.display = ""));
+}
+applyRoleVisibility(currentRole);
+
+// Helpers token
 function setToken(t) {
   token = t;
   window.localStorage.setItem("village_token", t);
@@ -10,23 +22,42 @@ function setToken(t) {
 function getToken() {
   return token || window.localStorage.getItem("village_token");
 }
+function setRole(r) {
+  currentRole = r;
+  window.localStorage.setItem("village_user_role", r || "");
+  applyRoleVisibility(r);
+}
 
 // ⚠️ Solo para pruebas locales: si quieres, descomenta la siguiente línea.
 // setToken("TU_TOKEN_AQUI");
 
+// --- helpers de validación muy simples ---
+function isEmail(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+function notEmpty(v){ return v !== null && v !== undefined && String(v).trim() !== ""; }
+function isValidRole(r){ return r === "user" || r === "admin"; }
+function isDateTimeLike(v){ return !!v && !isNaN(new Date(String(v).replace(" ", "T"))); }
+
 // --- helper genérico para la API ---
 async function api(path, method = "GET", body = null) {
-  const headers = { "Content-Type": "application/json" };
+  const headers = { "Content-Type": "application/json", "Cache-Control": "no-store" };
   const tk = getToken();
   if (tk) headers["Authorization"] = "Bearer " + tk;
 
   const res = await fetch(`${API_BASE}${path}`, {
     method,
     headers,
+    cache: "no-store",
     body: body ? JSON.stringify(body) : null
   });
 
   const txt = await res.text();
+
+  // Manejo 401: limpiar sesión y avisar
+  if (res.status === 401) {
+    logout();
+    throw new Error("401 Unauthorized: sesión expirada. Inicia sesión de nuevo.");
+  }
+
   if (!res.ok) throw new Error(txt || `HTTP ${res.status}`);
   try { return txt ? JSON.parse(txt) : {}; } catch { return {}; }
 }
@@ -37,12 +68,16 @@ async function register() {
   const rawRole = document.getElementById("reg-role").value;
   const role = rawRole === "resident" ? "user" : rawRole;
 
-  const body = {
-    name: document.getElementById("reg-name").value,
-    email: document.getElementById("reg-email").value,
-    password: document.getElementById("reg-pass").value,
-    role
-  };
+  const name = document.getElementById("reg-name").value;
+  const email = document.getElementById("reg-email").value;
+  const password = document.getElementById("reg-pass").value;
+
+  if (!notEmpty(name))  return (document.getElementById("reg-out").textContent = "Nombre requerido");
+  if (!isEmail(email))  return (document.getElementById("reg-out").textContent = "Email inválido");
+  if (!notEmpty(password)) return (document.getElementById("reg-out").textContent = "Contraseña requerida");
+  if (!isValidRole(role))  return (document.getElementById("reg-out").textContent = 'Rol inválido (usa "user" o "admin")');
+
+  const body = { name, email, password, role };
   try {
     const data = await api("/api/auth/register", "POST", body);
     document.getElementById("reg-out").textContent = JSON.stringify(data, null, 2);
@@ -52,14 +87,20 @@ async function register() {
 }
 
 async function login() {
-  const body = {
-    email: document.getElementById("log-email").value,
-    password: document.getElementById("log-pass").value,
-  };
+  const email = document.getElementById("log-email").value;
+  const password = document.getElementById("log-pass").value;
+
+  if (!isEmail(email))  return (document.getElementById("log-out").textContent = "Email inválido");
+  if (!notEmpty(password)) return (document.getElementById("log-out").textContent = "Contraseña requerida");
+
+  const body = { email, password };
   try {
     const data = await api("/api/auth/login", "POST", body);
     setToken(data.access_token);
-    document.getElementById("log-out").textContent = "OK: " + JSON.stringify(data.user);
+    const user = data.user || {};
+    document.getElementById("log-out").textContent = "OK: " + JSON.stringify(user);
+    setRole(user.role || null);
+    updateSessionBanner(user);
   } catch (e) {
     document.getElementById("log-out").textContent = e.message;
   }
@@ -68,6 +109,7 @@ async function login() {
 // ---- AMENITIES ----
 async function createAmenity() {
   const name = document.getElementById("amenity-name").value;
+  if (!notEmpty(name)) return (document.getElementById("amenities-out").textContent = "Nombre requerido");
   try {
     const data = await api("/api/amenities", "POST", { name });
     document.getElementById("amenities-out").textContent = JSON.stringify(data, null, 2);
@@ -89,6 +131,9 @@ async function createUnit() {
   const code = document.getElementById("unit-code").value;
   const owner_id = document.getElementById("unit-owner").value || null;
   const area_m2 = parseFloat(document.getElementById("unit-area").value || "0");
+  if (!notEmpty(code)) return (document.getElementById("units-out").textContent = "Código requerido");
+  if (isNaN(area_m2) || area_m2 <= 0) return (document.getElementById("units-out").textContent = "Área inválida");
+
   try {
     const data = await api("/api/units", "POST", { code, owner_id: owner_id ? Number(owner_id) : null, area_m2 });
     document.getElementById("units-out").textContent = JSON.stringify(data, null, 2);
@@ -109,10 +154,20 @@ async function listUnits() {
 async function createReservation() {
   const amenity_id = Number(document.getElementById("res-amenity").value);
   const user_id = Number(document.getElementById("res-user").value);
-  const start_at = new Date(document.getElementById("res-start").value.replace(" ", "T") + ":00");
-  const end_at = new Date(document.getElementById("res-end").value.replace(" ", "T") + ":00");
+  const start_raw = document.getElementById("res-start").value; // "YYYY-MM-DD HH:mm"
+  const end_raw   = document.getElementById("res-end").value;
+
+  if (!Number.isInteger(amenity_id)) return (document.getElementById("reservations-out").textContent = "amenity_id numérico");
+  if (!Number.isInteger(user_id))    return (document.getElementById("reservations-out").textContent = "user_id numérico");
+  if (!isDateTimeLike(start_raw) || !isDateTimeLike(end_raw)) {
+    return (document.getElementById("reservations-out").textContent = "Fechas inválidas (usa YYYY-MM-DD HH:mm)");
+  }
+
+  // Enviar como string "YYYY-MM-DD HH:mm" (tu backend valida solapamientos)
   try {
-    const data = await api("/api/reservations", "POST", { amenity_id, user_id, start_at, end_at });
+    const data = await api("/api/reservations", "POST", {
+      amenity_id, user_id, start_at: start_raw, end_at: end_raw
+    });
     listReservations();
   } catch (e) {
     document.getElementById("reservations-out").textContent = e.message;
@@ -135,6 +190,9 @@ async function createTicket() {
     title: document.getElementById("tk-title").value,
     description: document.getElementById("tk-desc").value,
   };
+  if (!Number.isInteger(body.user_id)) return (document.getElementById("tickets-out").textContent = "user_id numérico");
+  if (!notEmpty(body.title)) return (document.getElementById("tickets-out").textContent = "Título requerido");
+
   try {
     const data = await api("/api/tickets", "POST", body);
     listTickets();
@@ -159,6 +217,10 @@ async function createPayment() {
     amount: parseFloat(document.getElementById("pay-amount").value),
     method: document.getElementById("pay-method").value
   };
+  if (!Number.isInteger(body.user_id)) return (document.getElementById("payments-out").textContent = "user_id numérico");
+  if (isNaN(body.amount) || body.amount <= 0) return (document.getElementById("payments-out").textContent = "Monto inválido");
+  if (!notEmpty(body.method)) return (document.getElementById("payments-out").textContent = "Método requerido");
+
   try {
     const data = await api("/api/payments", "POST", body);
     listPayments();
@@ -198,6 +260,12 @@ async function createUser() {
     password: document.getElementById("usr-pass").value,
     role: role || "user",
   };
+
+  if (!notEmpty(body.name))  return (document.getElementById("users-out").textContent = "Nombre requerido");
+  if (!isEmail(body.email))  return (document.getElementById("users-out").textContent = "Email inválido");
+  if (!notEmpty(body.password)) return (document.getElementById("users-out").textContent = "Contraseña requerida");
+  if (!isValidRole(body.role))  return (document.getElementById("users-out").textContent = 'Rol inválido (usa "user" o "admin")');
+
   try {
     const data = await api(USERS_PATH, "POST", body);
     document.getElementById("users-out").textContent = JSON.stringify(data, null, 2);
@@ -218,9 +286,16 @@ async function updateUser() {
   const role = document.getElementById("usr-role").value.trim();
 
   if (name) body.name = name;
-  if (email) body.email = email;
+  if (email) {
+    if (!isEmail(email)) return (document.getElementById("users-out").textContent = "Email inválido");
+    body.email = email;
+  }
   if (password) body.password = password;
-  if (role) body.role = role === "resident" ? "user" : role;
+  if (role) {
+    const mapped = role === "resident" ? "user" : role;
+    if (!isValidRole(mapped)) return (document.getElementById("users-out").textContent = 'Rol inválido (usa "user" o "admin")');
+    body.role = mapped;
+  }
 
   try {
     const data = await api(`${USERS_PATH}/${id}`, "PUT", body);
@@ -246,14 +321,34 @@ async function deleteUser() {
 // ---- LOGOUT (única definición) ----
 function logout() {
   localStorage.removeItem("village_token");
+  localStorage.removeItem("village_user_role");
   token = null;
+  currentRole = null;
+  applyRoleVisibility(null);
   document.getElementById("log-out").textContent = "Sesión cerrada";
-  // opcional: limpiar paneles
-  // ["users-out","amenities-out","units-out","reservations-out","tickets-out","payments-out"]
-  //   .forEach(id => document.getElementById(id)?.textContent = "");
-  // opcional: recargar
-  // location.reload();
+
+  // limpiar campos del login
+  const emailInput = document.getElementById("log-email");
+  const passInput = document.getElementById("log-pass");
+  if (emailInput) emailInput.value = "";
+  if (passInput) passInput.value = "";
+
 }
 
 // exponemos la función para que el onclick del botón la encuentre
+// ===== Banner de sesión (nombre y rol actual) =====
+function updateSessionBanner(user) {
+  const sb = document.getElementById("session-banner");
+  if (!sb) return; // seguridad
+  if (!user) {
+    sb.style.display = "none";
+    return;
+  }
+  // Mostrar el nombre y rol en el banner
+  document.getElementById("sb-name").textContent = user.name || user.email || "Usuario";
+  document.getElementById("sb-role").textContent = user.role || "—";
+  sb.style.display = "";
+}
+
+
 window.logout = logout;

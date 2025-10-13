@@ -7,165 +7,290 @@
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <header>
-      <h1>Village — Gestión de Condominios (Prototipo)</h1>
-      <p class="muted">Login → Usuarios → Reservas → Mantenimiento → Pagos (mock)</p>
+    <!-- Header / Navbar -->
+    <header class="topbar">
+      <div class="brand">
+        <span class="logo">🏡</span>
+        <h1>Village — Gestión de Condominios</h1>
+      </div>
+      <nav class="nav">
+        <a href="#auth">Auth</a>
+        <a href="#users">Usuarios</a>
+        <a href="#data">Datos base</a>
+        <a href="#reservations">Reservas</a>
+        <a href="#tickets">Mantenimiento</a>
+        <a href="#payments">Pagos</a>
+      </nav>
     </header>
 
-    <!-- 1) AUTENTICACIÓN -->
-    <section id="auth">
-      <h2>1) Autenticación</h2>
-      <div class="row">
-        <div class="card">
-          <h3>Registro</h3>
-          <input id="reg-name" placeholder="Nombre" />
-          <input id="reg-email" placeholder="Email" />
-          <input id="reg-pass" type="password" placeholder="Contraseña" />
-          <select id="reg-role">
-            <option value="resident">resident</option>
-            <option value="admin">admin</option>
-          </select>
-          <button onclick="register()">Registrar</button>
-          <pre id="reg-out"></pre>
+    <main class="container">
+      <p class="muted center">Login → Usuarios → Reservas → Mantenimiento → Pagos (mock)</p>
+        <!-- Banner de sesión actual -->
+    <section class="section" id="session-banner" style="display:none">
+      <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div>
+          <strong id="sb-name">—</strong>
+          <span class="muted">(<span id="sb-role">—</span>)</span>
         </div>
-        <div class="card">
-          <h3>Login</h3>
-          <input id="log-email" placeholder="Email" />
-          <input id="log-pass" type="password" placeholder="Contraseña" />
-          <button onclick="login()">Entrar</button>
-          <pre id="log-out"></pre>
-          <button onclick="logout()">Salir</button>
+        <div class="actions">
+          <button class="ghost" onclick="listAmenities()">Amenities</button>
+          <button class="ghost" onclick="listUnits()">Unidades</button>
+          <button class="chip" onclick="logout()">Cerrar sesión</button>
         </div>
       </div>
     </section>
 
-    <!-- 2) USUARIOS (CRUD) -->
-    <section id="users" style="margin-top:24px;">
-      <h2>2) Usuarios (CRUD)</h2>
-      <div class="row">
-        <div class="card">
-          <h3>Crear / Actualizar / Eliminar</h3>
-          <div class="grid" style="display:grid; gap:8px; max-width:520px;">
-            <label>Nombre
-              <input id="usr-name" placeholder="Nombre" />
-            </label>
+
+      <!-- 1) AUTENTICACIÓN -->
+      <section id="auth" class="section">
+        <h2>1) Autenticación</h2>
+        <div class="row">
+          <div class="card">
+            <h3>Registro</h3>
+            <div class="grid">
+              <label>Nombre
+                <input id="reg-name" placeholder="Nombre" />
+                <small class="error" id="reg-name-err"></small>
+              </label>
+              <label>Email
+                <input id="reg-email" placeholder="correo@demo.com" />
+                <small class="error" id="reg-email-err"></small>
+              </label>
+              <label>Contraseña
+                <input id="reg-pass" type="password" placeholder="••••••" />
+                <small class="error" id="reg-pass-err"></small>
+              </label>
+              <label>Rol
+                <select id="reg-role">
+                  <option value="resident">resident</option>
+                  <option value="admin">admin</option>
+                </select>
+                <small class="hint">* “resident” se mapeará a “user”.</small>
+              </label>
+            </div>
+            <div class="actions">
+              <button class="primary" onclick="register()">Registrar</button>
+            </div>
+            <pre id="reg-out" class="output"></pre>
+          </div>
+
+          <div class="card">
+            <h3>Login</h3>
             <label>Email
-              <input id="usr-email" type="email" placeholder="correo@demo.com" />
+              <input id="log-email" placeholder="correo@demo.com" />
+              <small class="error" id="log-email-err"></small>
             </label>
             <label>Contraseña
-              <input id="usr-pass" type="password" placeholder="••••••" />
+              <input id="log-pass" type="password" placeholder="••••••" />
+              <small class="error" id="log-pass-err"></small>
             </label>
-            <label>Rol
-              <select id="usr-role">
-                <option value="resident" selected>resident</option>
-                <option value="admin">admin</option>
-              </select>
+            <div class="actions">
+              <button class="primary" onclick="login()">Entrar</button>
+            </div>
+            <pre id="log-out" class="output"></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- 2) USUARIOS (CRUD) -->
+      <section id="users" class="section" data-role="admin-only" style="display:none">
+        <h2>2) Usuarios (CRUD)</h2>
+        <div class="row">
+          <div class="card">
+            <h3>Crear / Actualizar / Eliminar</h3>
+            <div class="grid">
+              <label>Nombre
+                <input id="usr-name" placeholder="Nombre" />
+                <small class="error" id="usr-name-err"></small>
+              </label>
+              <label>Email
+                <input id="usr-email" type="email" placeholder="correo@demo.com" />
+                <small class="error" id="usr-email-err"></small>
+              </label>
+              <label>Contraseña
+                <input id="usr-pass" type="password" placeholder="••••••" />
+                <small class="error" id="usr-pass-err"></small>
+              </label>
+              <label>Rol
+                <select id="usr-role">
+                  <option value="resident" selected>resident</option>
+                  <option value="admin">admin</option>
+                </select>
+                <small class="hint">* “resident” se mapeará a “user”.</small>
+              </label>
+              <label>ID (para editar/borrar)
+                <input id="usr-id" type="number" min="1" placeholder="ej. 2" />
+              </label>
+            </div>
+
+            <div class="actions wrap">
+              <button onclick="createUser()">Crear usuario</button>
+              <button onclick="listUsers()">Listar usuarios</button>
+              <button onclick="updateUser()">Actualizar usuario (por ID)</button>
+              <button class="danger" onclick="deleteUser()">Eliminar usuario (por ID)</button>
+            </div>
+
+            <pre id="users-out" class="output"></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- 3) DATOS BASE -->
+      <section id="data" class="section" data-role="admin-only" style="display:none">
+        <h2>3) Datos base (admin)</h2>
+        <div class="row">
+          <div class="card">
+            <h3>Crear Amenidad</h3>
+            <label>Nombre
+              <input id="amenity-name" placeholder="Ej: Salón Social" />
+              <small class="error" id="amenity-err"></small>
             </label>
-            <label>ID (para editar/borrar)
-              <input id="usr-id" type="number" min="1" placeholder="ej. 2" />
-            </label>
+            <div class="actions">
+              <button onclick="createAmenity()">Crear</button>
+              <button class="ghost" onclick="listAmenities()">Listar</button>
+            </div>
+            <pre id="amenities-out" class="output"></pre>
           </div>
 
-          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
-            <button onclick="createUser()">Crear usuario</button>
-            <button onclick="listUsers()">Listar usuarios</button>
-            <button onclick="updateUser()">Actualizar usuario (por ID)</button>
-            <button onclick="deleteUser()">Eliminar usuario (por ID)</button>
+          <div class="card">
+            <h3>Crear Unidad</h3>
+            <div class="grid">
+              <label>Código
+                <input id="unit-code" placeholder="Ej: Torre A - 302" />
+                <small class="error" id="unit-code-err"></small>
+              </label>
+              <label>owner_id (opcional)
+                <input id="unit-owner" placeholder="ej. 2" />
+              </label>
+              <label>Área m²
+                <input id="unit-area" placeholder="ej. 72" />
+                <small class="error" id="unit-area-err"></small>
+              </label>
+            </div>
+            <div class="actions">
+              <button onclick="createUnit()">Crear</button>
+              <button class="ghost" onclick="listUnits()">Listar</button>
+            </div>
+            <pre id="units-out" class="output"></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- 4) RESERVAS -->
+      <section id="reservations" class="section" data-role="any" style="display:none">
+        <h2>4) Reservas</h2>
+        <div class="row">
+          <div class="card">
+            <h3>Nueva Reserva</h3>
+            <div class="grid">
+              <label>amenity_id
+                <input id="res-amenity" placeholder="ej. 1" />
+              </label>
+              <label>user_id
+                <input id="res-user" placeholder="ej. 2" />
+              </label>
+              <label>Inicio
+                <input id="res-start" placeholder="YYYY-MM-DD HH:MM" />
+              </label>
+              <label>Fin
+                <input id="res-end" placeholder="YYYY-MM-DD HH:MM" />
+              </label>
+            </div>
+            <div class="actions">
+              <button class="primary" onclick="createReservation()">Reservar</button>
+            </div>
           </div>
 
-          <pre id="users-out" style="margin-top:12px;"></pre>
+          <div class="card">
+            <h3>Listado</h3>
+            <div class="actions">
+              <button class="ghost" onclick="listReservations()">Refrescar</button>
+            </div>
+            <pre id="reservations-out" class="output"></pre>
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- 3) DATOS BASE -->
-    <section id="data">
-      <h2>3) Datos base (admin)</h2>
-      <div class="row">
-        <div class="card">
-          <h3>Crear Amenidad</h3>
-          <input id="amenity-name" placeholder="Ej: Salón Social" />
-          <button onclick="createAmenity()">Crear</button>
-          <button onclick="listAmenities()">Listar</button>
-          <pre id="amenities-out"></pre>
-        </div>
-        <div class="card">
-          <h3>Crear Unidad</h3>
-          <input id="unit-code" placeholder="Ej: Torre A - 302" />
-          <input id="unit-owner" placeholder="owner_id (opcional)" />
-          <input id="unit-area" placeholder="area m2" />
-          <button onclick="createUnit()">Crear</button>
-          <button onclick="listUnits()">Listar</button>
-          <pre id="units-out"></pre>
-        </div>
-      </div>
-    </section>
+      <!-- 5) MANTENIMIENTO -->
+      <section id="tickets" class="section" data-role="any" style="display:none">
+        <h2>5) Mantenimiento</h2>
+        <div class="row">
+          <div class="card">
+            <h3>Nuevo Ticket</h3>
+            <div class="grid">
+              <label>user_id
+                <input id="tk-user" placeholder="ej. 2" />
+              </label>
+              <label>unit_id (opcional)
+                <input id="tk-unit" placeholder="ej. 1" />
+              </label>
+              <label>Título
+                <input id="tk-title" placeholder="Título" />
+              </label>
+              <label>Descripción
+                <textarea id="tk-desc" placeholder="Descripción"></textarea>
+              </label>
+            </div>
+            <div class="actions">
+              <button onclick="createTicket()">Crear</button>
+            </div>
+          </div>
 
-    <!-- 4) RESERVAS -->
-    <section id="reservations">
-      <h2>4) Reservas</h2>
-      <div class="row">
-        <div class="card">
-          <h3>Nueva Reserva</h3>
-          <input id="res-amenity" placeholder="amenity_id" />
-          <input id="res-user" placeholder="user_id" />
-          <input id="res-start" placeholder="start_at (YYYY-MM-DD HH:MM)" />
-          <input id="res-end" placeholder="end_at (YYYY-MM-DD HH:MM)" />
-          <button onclick="createReservation()">Reservar</button>
+          <div class="card">
+            <h3>Listado</h3>
+            <div class="actions">
+              <button class="ghost" onclick="listTickets()">Refrescar</button>
+            </div>
+            <pre id="tickets-out" class="output"></pre>
+          </div>
         </div>
-        <div class="card">
-          <h3>Listado</h3>
-          <button onclick="listReservations()">Refrescar</button>
-          <pre id="reservations-out"></pre>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <!-- 5) MANTENIMIENTO -->
-    <section id="tickets">
-      <h2>5) Mantenimiento</h2>
-      <div class="row">
-        <div class="card">
-          <h3>Nuevo Ticket</h3>
-          <input id="tk-user" placeholder="user_id" />
-          <input id="tk-unit" placeholder="unit_id (opcional)" />
-          <input id="tk-title" placeholder="Título" />
-          <textarea id="tk-desc" placeholder="Descripción"></textarea>
-          <button onclick="createTicket()">Crear</button>
-        </div>
-        <div class="card">
-          <h3>Listado</h3>
-          <button onclick="listTickets()">Refrescar</button>
-          <pre id="tickets-out"></pre>
-        </div>
-      </div>
-    </section>
+      <!-- 6) PAGOS -->
+      <section id="payments" class="section" data-role="any" style="display:none">
+        <h2>6) Pagos (mock)</h2>
+        <div class="row">
+          <div class="card">
+            <h3>Nuevo Pago</h3>
+            <div class="grid">
+              <label>user_id
+                <input id="pay-user" placeholder="ej. 2" />
+              </label>
+              <label>unit_id (opcional)
+                <input id="pay-unit" placeholder="ej. 1" />
+              </label>
+              <label>Monto
+                <input id="pay-amount" placeholder="ej. 150.00" />
+              </label>
+              <label>Método
+                <select id="pay-method">
+                  <option value="card">card</option>
+                  <option value="cash">cash</option>
+                  <option value="transfer">transfer</option>
+                </select>
+              </label>
+            </div>
+            <div class="actions">
+              <button onclick="createPayment()">Pagar</button>
+            </div>
+          </div>
 
-    <!-- 6) PAGOS -->
-    <section id="payments">
-      <h2>6) Pagos (mock)</h2>
-      <div class="row">
-        <div class="card">
-          <h3>Nuevo Pago</h3>
-          <input id="pay-user" placeholder="user_id" />
-          <input id="pay-unit" placeholder="unit_id (opcional)" />
-          <input id="pay-amount" placeholder="Monto" />
-          <select id="pay-method">
-            <option value="card">card</option>
-            <option value="cash">cash</option>
-            <option value="transfer">transfer</option>
-          </select>
-          <button onclick="createPayment()">Pagar</button>
+          <div class="card">
+            <h3>Historial</h3>
+            <div class="actions">
+              <button class="ghost" onclick="listPayments()">Refrescar</button>
+            </div>
+            <pre id="payments-out" class="output"></pre>
+          </div>
         </div>
-        <div class="card">
-          <h3>Historial</h3>
-          <button onclick="listPayments()">Refrescar</button>
-          <pre id="payments-out"></pre>
-        </div>
-      </div>
-    </section>
+      </section>
 
-    <footer>
+      <section class="section center">
+        <button class="chip" onclick="logout()">Cerrar sesión</button>
+      </section>
+    </main>
+
+    <footer class="footer">
       <small>Prototipo académico. No usar en producción.</small>
     </footer>
 
