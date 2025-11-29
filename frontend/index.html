@@ -128,10 +128,10 @@
                 <input id="unit-code" placeholder="Ej: Torre A - 302" />
                 <small class="error" id="unit-code-err"></small>
               </label>
-              <label> Propietario (owner_id, opcional)
+              <label>Propietario (owner_id, opcional)
                 <select id="unit-owner">
                   <option value="">— Selecciona propietario —</option>
-                </select>               
+                </select>
               </label>
               <label>Área (m²)
                 <input id="unit-area" placeholder="ej. 72" />
@@ -142,6 +142,17 @@
               <button onclick="createUnit()">Crear</button>
               <button class="ghost" onclick="listUnits()">Listar</button>
             </div>
+
+            <!-- NUEVO: eliminar unidad -->
+            <div class="grid" style="margin-top:8px">
+              <label>ID de unidad (para eliminar)
+                <input id="unit-id" type="number" min="1" placeholder="ej. 3" />
+              </label>
+            </div>
+            <div class="actions">
+              <button class="danger" onclick="deleteUnit()">Eliminar unidad</button>
+            </div>
+
             <pre id="units-out" class="output"></pre>
           </div>
         </div>
@@ -261,13 +272,8 @@
         <button class="chip" onclick="logout()">Cerrar sesión</button>
       </section>
     </main>
+
     <script src="./app.js?v=toast6"></script>
-  <div id="toast" class="toast hidden"></div>  
+    <div id="toast" class="toast hidden"></div>
   </body>
 </html>
-
-
-
-
-
-

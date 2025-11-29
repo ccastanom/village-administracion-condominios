@@ -75,13 +75,14 @@ function showUsersOut() {
 }
 
 /* ========== AUTH ========== */
+// (Puedes dejar register() aunque no se use en UI)
 async function register() {
-  const rawRole = document.getElementById("reg-role").value;
+  const rawRole = document.getElementById("reg-role")?.value;
   const role = rawRole === "resident" ? "user" : rawRole;
 
-  const name = document.getElementById("reg-name").value;
-  const email = document.getElementById("reg-email").value;
-  const password = document.getElementById("reg-pass").value;
+  const name = document.getElementById("reg-name")?.value;
+  const email = document.getElementById("reg-email")?.value;
+  const password = document.getElementById("reg-pass")?.value;
 
   const out = document.getElementById("reg-out");
 
@@ -92,17 +93,84 @@ async function register() {
 
   try {
     await api("/api/auth/register", "POST", { name, email, password, role });
-    // ✅ Éxito: sin JSON ni autolista
     out.textContent = "";
     showToast("Registro exitoso");
-    // limpiar campos
-    document.getElementById("reg-name").value = "";
-    document.getElementById("reg-email").value = "";
-    document.getElementById("reg-pass").value = "";
-    document.getElementById("reg-role").value = "resident";
+    if (document.getElementById("reg-name")) document.getElementById("reg-name").value = "";
+    if (document.getElementById("reg-email")) document.getElementById("reg-email").value = "";
+    if (document.getElementById("reg-pass")) document.getElementById("reg-pass").value = "";
+    if (document.getElementById("reg-role")) document.getElementById("reg-role").value = "resident";
   } catch (e) {
     out.textContent = "";
     showToast(e.message || "Error registrando", "error");
+  }
+}
+
+/* ===== Banner de sesión (nombre y rol actual) ===== */
+function updateSessionBanner(user) {
+  const sb = document.getElementById("session-banner");
+  if (!sb) return;
+  if (!user) {
+    sb.style.display = "none";
+    return;
+  }
+  document.getElementById("sb-name").textContent = user.name || user.email || "Usuario";
+  document.getElementById("sb-role").textContent = user.role || "—";
+  sb.style.display = "";
+}
+
+/* ==== Usuario actual + formatos/tiempos para lógica de demo ==== */
+function saveCurrentUser(u){ localStorage.setItem("village_user", JSON.stringify(u||{})); }
+function getCurrentUser(){
+  try { return JSON.parse(localStorage.getItem("village_user")||"{}"); } catch { return {}; }
+}
+function fmt(dtStr){
+  if(!dtStr) return "—";
+  const s = String(dtStr).replace(" ", "T");
+  const d = new Date(s);
+  if (isNaN(d)) return dtStr;
+  const pad = n => String(n).padStart(2,"0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+function isAfter(a,b){
+  const A=new Date(String(a).replace(" ","T"));
+  const B=new Date(String(b).replace(" ","T"));
+  return A.getTime()>B.getTime();
+}
+function minutesBetween(a,b){
+  const A=new Date(String(a).replace(" ","T")).getTime();
+  const B=new Date(String(b).replace(" ","T")).getTime();
+  return Math.round((B-A)/60000);
+}
+function isPast(dt){
+  const t = new Date(String(dt).replace(" ","T")).getTime();
+  return t < Date.now();
+}
+
+/* ==== Mostrar / ocultar sección de autenticación ==== */
+function hideAuth() {
+  const auth = document.getElementById("auth");
+  if (auth) auth.style.display = "none";
+}
+function showAuth() {
+  const auth = document.getElementById("auth");
+  if (auth) auth.style.display = "";
+}
+
+/* ==== Select dinámico de owner_id (admin) ==== */
+async function loadOwnerSelect() {
+  const sel = document.getElementById("unit-owner");
+  if (!sel) return;
+  try {
+    const users = await api("/api/users");
+    sel.innerHTML = '<option value="">— Selecciona propietario —</option>';
+    users.forEach(u => {
+      const opt = document.createElement("option");
+      opt.value = u.id;
+      opt.textContent = `${u.id} — ${u.name} (${u.email})`;
+      sel.appendChild(opt);
+    });
+  } catch (e) {
+    console.warn("No se pudo cargar owner_id:", e);
   }
 }
 
@@ -119,62 +187,97 @@ async function login() {
     setToken(data.access_token);
     const user = data.user || {};
     document.getElementById("log-out").textContent = "OK: " + JSON.stringify(user);
+    saveCurrentUser(user);                 // ✅ guarda id/role para la lógica
     setRole(user.role || null);
     updateSessionBanner(user);
-    hideAuth();   // ⬅️ oculta el bloque de login/registro
+    hideAuth();                            // ⬅️ oculta el login
+    if ((user.role || "") === "admin") {
+      loadOwnerSelect();                   // preparar select de owner_id
+    }
   } catch (e) {
     document.getElementById("log-out").textContent = e.message;
   }
 }
 
-/* ========== AMENITIES ========== */
+
+// === ÁREAS COMUNES (amenities) ===
 async function createAmenity() {
   const name = document.getElementById("amenity-name").value;
-  if (!notEmpty(name)) return (document.getElementById("amenities-out").textContent = "Nombre requerido");
+  const out = document.getElementById("amenities-out");
+  if (!notEmpty(name)) { out.textContent = ""; showToast("Nombre de área común requerido", "error"); return; }
+
   try {
-    const data = await api("/api/amenities", "POST", { name });
-    document.getElementById("amenities-out").textContent = JSON.stringify(data, null, 2);
+    await api("/api/amenities", "POST", { name });
+    // nada de JSON:
+    out.textContent = "";
+    showToast("Área común creada");
+    // limpiar campo
+    document.getElementById("amenity-name").value = "";
+    // (opcional) refrescar listado
+    await listAmenities();
   } catch (e) {
-    document.getElementById("amenities-out").textContent = e.message;
+    out.textContent = "";
+    showToast(e.message || "Error creando área común", "error");
   }
 }
+
 async function listAmenities() {
   try {
     const data = await api("/api/amenities");
-    document.getElementById("amenities-out").textContent = JSON.stringify(data, null, 2);
+    const lines = (data||[]).map(a=>`• [${a.id}] ${a.name}`).join("\n") || "—";
+    const pretty = `Áreas comunes (${data?.length||0}):\n${lines}`;
+    document.getElementById("amenities-out").textContent = pretty;
   } catch (e) {
     document.getElementById("amenities-out").textContent = e.message;
   }
 }
 
-/* ========== UNITS ========== */
+// === UNIDADES (propiedades) ===
 async function createUnit() {
   const code = document.getElementById("unit-code").value;
   const owner_id = document.getElementById("unit-owner").value || null;
   const area_m2 = parseFloat(document.getElementById("unit-area").value || "0");
-  if (!notEmpty(code)) return (document.getElementById("units-out").textContent = "Código requerido");
-  if (isNaN(area_m2) || area_m2 <= 0) return (document.getElementById("units-out").textContent = "Área inválida");
+  const out = document.getElementById("units-out");
+
+  if (!notEmpty(code))          { out.textContent = ""; showToast("Código de unidad requerido", "error"); return; }
+  if (isNaN(area_m2) || area_m2 <= 0) { out.textContent = ""; showToast("Área inválida", "error"); return; }
 
   try {
-    const data = await api("/api/units", "POST", { code, owner_id: owner_id ? Number(owner_id) : null, area_m2 });
-    document.getElementById("units-out").textContent = JSON.stringify(data, null, 2);
+    await api("/api/units", "POST", { code, owner_id: owner_id ? Number(owner_id) : null, area_m2 });
+    // nada de JSON:
+    out.textContent = "";
+    showToast("Unidad creada");
+    // limpiar campos
+    document.getElementById("unit-code").value = "";
+    document.getElementById("unit-owner").value = "";
+    document.getElementById("unit-area").value = "";
+    // (opcional) refrescar listado
+    await listUnits();
   } catch (e) {
-    document.getElementById("units-out").textContent = e.message;
+    out.textContent = "";
+    showToast(e.message || "Error creando unidad", "error");
   }
 }
+
 async function listUnits() {
   try {
     const data = await api("/api/units");
-    document.getElementById("units-out").textContent = JSON.stringify(data, null, 2);
+    const lines = (data||[]).map(u=>`• [${u.id}] ${u.code} — área: ${u.area_m2} m² — owner_id: ${u.owner_id ?? "—"}`).join("\n") || "—";
+    const pretty = `Unidades (${data?.length||0}):\n${lines}`;
+    document.getElementById("units-out").textContent = pretty;
   } catch (e) {
     document.getElementById("units-out").textContent = e.message;
   }
 }
 
+
 /* ========== RESERVATIONS ========== */
 async function createReservation() {
+  // Si el rol es user, forzar su propio id
+  const me = getCurrentUser();
+  const role = (me.role || localStorage.getItem("village_user_role") || "");
   const amenity_id = Number(document.getElementById("res-amenity").value);
-  const user_id = Number(document.getElementById("res-user").value);
+  const user_id = role === "user" ? Number(me.id) : Number(document.getElementById("res-user").value);
   const start_raw = document.getElementById("res-start").value; // "YYYY-MM-DD HH:mm"
   const end_raw   = document.getElementById("res-end").value;
 
@@ -183,11 +286,23 @@ async function createReservation() {
   if (!isDateTimeLike(start_raw) || !isDateTimeLike(end_raw)) {
     return (document.getElementById("reservations-out").textContent = "Fechas inválidas (usa YYYY-MM-DD HH:mm)");
   }
+  if (!isAfter(end_raw, start_raw)) {
+    return (document.getElementById("reservations-out").textContent = "La hora de fin debe ser posterior al inicio");
+  }
+  if (isPast(start_raw)) {
+    return (document.getElementById("reservations-out").textContent = "No puedes reservar en el pasado");
+  }
+  const mins = minutesBetween(start_raw, end_raw);
+  if (mins <= 0 || mins > 180) {
+    return (document.getElementById("reservations-out").textContent = "Duración inválida (máximo 180 minutos)");
+  }
 
   try {
     const data = await api("/api/reservations", "POST", {
       amenity_id, user_id, start_at: start_raw, end_at: end_raw
     });
+    document.getElementById("reservations-out").textContent =
+      `✅ Reserva creada\n${JSON.stringify(data, null, 2)}`;
     listReservations();
   } catch (e) {
     document.getElementById("reservations-out").textContent = e.message;
@@ -196,7 +311,20 @@ async function createReservation() {
 async function listReservations() {
   try {
     const data = await api("/api/reservations");
-    document.getElementById("reservations-out").textContent = JSON.stringify(data, null, 2);
+    const me = getCurrentUser();
+    const role = (me.role || localStorage.getItem("village_user_role") || "");
+    const items = (role === "user") ? (data||[]).filter(r => r.user_id === me.id) : (data||[]);
+
+    items.sort((a,b)=> new Date(a.start_at) - new Date(b.start_at));
+    const upcoming = items.filter(r=> !isPast(r.end_at));
+    const past     = items.filter(r=>  isPast(r.end_at));
+
+    const fmtLine = r => `• [#${r.id}] amenity:${r.amenity_id} — user:${r.user_id} — ${fmt(r.start_at)} → ${fmt(r.end_at)}`;
+    const upLines = upcoming.map(fmtLine).join("\n") || "—";
+    const paLines = past.map(fmtLine).join("\n") || "—";
+
+    const pretty = `Mis Reservas (${items.length})\n\nPróximas (${upcoming.length}):\n${upLines}\n\nPasadas (${past.length}):\n${paLines}\n\nJSON:\n${JSON.stringify(items,null,2)}`;
+    document.getElementById("reservations-out").textContent = pretty;
   } catch (e) {
     document.getElementById("reservations-out").textContent = e.message;
   }
@@ -204,8 +332,12 @@ async function listReservations() {
 
 /* ========== TICKETS ========== */
 async function createTicket() {
+  const me = getCurrentUser();
+  const role = (me.role || localStorage.getItem("village_user_role") || "");
+  const forcedUserId = role === "user" ? Number(me.id) : null;
+
   const body = {
-    user_id: Number(document.getElementById("tk-user").value),
+    user_id: forcedUserId ?? Number(document.getElementById("tk-user").value),
     unit_id: document.getElementById("tk-unit").value ? Number(document.getElementById("tk-unit").value) : null,
     title: document.getElementById("tk-title").value,
     description: document.getElementById("tk-desc").value,
@@ -215,6 +347,7 @@ async function createTicket() {
 
   try {
     const data = await api("/api/tickets", "POST", body);
+    document.getElementById("tickets-out").textContent = `✅ Ticket creado\n${JSON.stringify(data,null,2)}`;
     listTickets();
   } catch (e) {
     document.getElementById("tickets-out").textContent = e.message;
@@ -223,7 +356,19 @@ async function createTicket() {
 async function listTickets() {
   try {
     const data = await api("/api/tickets");
-    document.getElementById("tickets-out").textContent = JSON.stringify(data, null, 2);
+    const me = getCurrentUser();
+    const role = (me.role || localStorage.getItem("village_user_role") || "");
+    const items = (role === "user") ? (data||[]).filter(t => t.user_id === me.id) : (data||[]);
+
+    const byUnit = {};
+    items.forEach(t=>{
+      const key = t.unit_id ?? "—";
+      byUnit[key] = (byUnit[key]||0)+1;
+    });
+    const unitLines = Object.entries(byUnit).map(([u,c])=>`• unidad ${u}: ${c} ticket(s)`).join("\n") || "—";
+    const lines = items.map(t=>`• [#${t.id}] user:${t.user_id} unidad:${t.unit_id ?? "—"} — ${t.title}`).join("\n") || "—";
+    const pretty = `Tickets (${items.length})\nPor unidad:\n${unitLines}\n\nListado:\n${lines}\n\nJSON:\n${JSON.stringify(items,null,2)}`;
+    document.getElementById("tickets-out").textContent = pretty;
   } catch (e) {
     document.getElementById("tickets-out").textContent = e.message;
   }
@@ -251,7 +396,32 @@ async function createPayment() {
 async function listPayments() {
   try {
     const data = await api("/api/payments");
-    document.getElementById("payments-out").textContent = JSON.stringify(data, null, 2);
+    const me = getCurrentUser();
+    const role = (me.role || localStorage.getItem("village_user_role") || "");
+
+    const items = (role === "user") ? (data||[]).filter(p => p.user_id === me.id) : (data||[]);
+
+    const sum = (arr,fn)=> arr.reduce((acc,x)=> acc + (Number(fn(x))||0), 0);
+    const total = sum(items, x=>x.amount);
+
+    let summary = `Pagos (${items.length}) — Total: $${total.toFixed(2)}\n`;
+
+    if (role === "admin") {
+      const byMethod = {};
+      items.forEach(p=>{
+        byMethod[p.method] = (byMethod[p.method]||0) + (Number(p.amount)||0);
+      });
+      const meth = Object.entries(byMethod).map(([m,tot])=>`• ${m}: $${tot.toFixed(2)}`).join("\n") || "—";
+      summary += `Por método:\n${meth}\n`;
+    }
+
+    const lines = items
+      .sort((a,b)=> (a.id-b.id))
+      .map(p=>`• [#${p.id}] user:${p.user_id} unidad:${p.unit_id ?? "—"} — $${Number(p.amount||0).toFixed(2)} (${p.method})`)
+      .join("\n") || "—";
+
+    const pretty = `${summary}\nListado:\n${lines}\n\nJSON:\n${JSON.stringify(items,null,2)}`;
+    document.getElementById("payments-out").textContent = pretty;
   } catch (e) {
     document.getElementById("payments-out").textContent = e.message;
   }
@@ -292,12 +462,10 @@ async function createUser() {
     await api(USERS_PATH, "POST", body);
     hideUsersOut();                 // ✅ no mostrar JSON
     showToast("Registro exitoso");  // ✅ solo notificación
-    // limpiar campos
     document.getElementById("usr-name").value = "";
     document.getElementById("usr-email").value = "";
     document.getElementById("usr-pass").value = "";
     document.getElementById("usr-role").value = "resident";
-    // importante: NO llamar listUsers() aquí
   } catch (e) {
     hideUsersOut();
     showToast(e.message || "Error creando usuario", "error");
@@ -355,6 +523,7 @@ async function deleteUser() {
 function logout() {
   localStorage.removeItem("village_token");
   localStorage.removeItem("village_user_role");
+  localStorage.removeItem("village_user"); // 🔄 limpia usuario actual
   token = null;
   currentRole = null;
   applyRoleVisibility(null);
@@ -366,34 +535,10 @@ function logout() {
   if (emailInput) emailInput.value = "";
   if (passInput) passInput.value = "";
 
-  updateSessionBanner(null); // oculta el banner superior
-  showAuth();                // muestra de nuevo el bloque de login/registro
+  updateSessionBanner(null);
+  showAuth();
 }
 window.logout = logout;
-
-/* ===== Banner de sesión (nombre y rol actual) ===== */
-function updateSessionBanner(user) {
-  const sb = document.getElementById("session-banner");
-  if (!sb) return; // seguridad
-  if (!user) {
-    sb.style.display = "none";
-    return;
-  }
-  // Mostrar el nombre y rol en el banner
-  document.getElementById("sb-name").textContent = user.name || user.email || "Usuario";
-  document.getElementById("sb-role").textContent = user.role || "—";
-  sb.style.display = "";
-}
-
-/* ==== Mostrar / ocultar sección de autenticación ==== */
-function hideAuth() {
-  const auth = document.getElementById("auth");
-  if (auth) auth.style.display = "none";
-}
-function showAuth() {
-  const auth = document.getElementById("auth");
-  if (auth) auth.style.display = "";
-}
 
 /* ==== Restaurar sesión al cargar la página ==== */
 (async function bootstrapUI(){
@@ -403,16 +548,21 @@ function showAuth() {
   // Intentar /api/auth/me. Si no existe, usar el rol guardado como fallback.
   try {
     const me = await api("/api/auth/me", "GET");
+    saveCurrentUser(me);
     setRole(me.role || null);
     updateSessionBanner(me);
     hideAuth();
+    if ((me.role || "") === "admin") {
+      loadOwnerSelect();
+    }
   } catch {
-    // Fallback sin /me: solo con rol almacenado
     const role = window.localStorage.getItem("village_user_role") || null;
     if (role) {
       setRole(role);
-      updateSessionBanner({ name: "Usuario", role });
+      const fallback = { name: "Usuario", role };
+      updateSessionBanner(fallback);
       hideAuth();
+      if (role === "admin") loadOwnerSelect();
     } else {
       showAuth();
     }
@@ -444,6 +594,5 @@ document.addEventListener("DOMContentLoaded", () => {
     f.addEventListener("submit", e => e.preventDefault())
   );
 });
-
 
 

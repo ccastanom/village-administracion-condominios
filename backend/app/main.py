@@ -13,6 +13,9 @@ from . import models, schemas
 from .auth import hash_password, verify_password, create_access_token, get_current_user, require_role
 from pydantic import BaseModel, EmailStr
 from typing import Optional
+from fastapi import Response  # ← agrega esto
+
+
 # -------------------- APP & CORS & FRONTEND --------------------
 
 
@@ -177,6 +180,29 @@ def create_unit(unit_in: schemas.UnitIn, db: Session = Depends(get_db), user=Dep
 @app.get("/api/units", response_model=List[schemas.UnitOut], tags=["units"])
 def list_units(db: Session = Depends(get_db), user=Depends(get_current_user)):
     return db.query(models.Unit).all()
+
+@app.delete("/api/units/{unit_id}", status_code=204, tags=["units"])
+def delete_unit(unit_id: int, 
+                db: Session = Depends(get_db), 
+                user=Depends(require_role("admin"))):
+    # usa el mismo estilo que ya usas en users (query().get)
+    unit = db.query(models.Unit).get(unit_id)
+    if not unit:
+        raise HTTPException(status_code=404, detail="Unidad no encontrada")
+
+    try:
+        db.delete(unit)
+        db.commit()
+        return Response(status_code=204)   # No Content
+    except IntegrityError:
+        db.rollback()
+        # hay pagos/tickets que referencian esta unidad
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede eliminar: existen pagos/tickets que referencian esta unidad"
+        )
+
+
 
 
 # -------------------- AMENITIES --------------------
