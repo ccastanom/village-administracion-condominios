@@ -1,3 +1,5 @@
+// build toast7
+
 // === BASE DE LA API ===
 const API_BASE = "http://127.0.0.1:8000";
 
@@ -27,9 +29,6 @@ function setRole(r) {
   window.localStorage.setItem("village_user_role", r || "");
   applyRoleVisibility(r);
 }
-
-// ⚠️ Solo para pruebas locales: si quieres, descomenta la siguiente línea.
-// setToken("TU_TOKEN_AQUI");
 
 // --- helpers de validación muy simples ---
 function isEmail(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
@@ -62,9 +61,21 @@ async function api(path, method = "GET", body = null) {
   try { return txt ? JSON.parse(txt) : {}; } catch { return {}; }
 }
 
-// ---- AUTH ----
+/* =========================
+   Helpers visuales de USUARIOS
+   ========================= */
+const usersOutEl = () => document.getElementById("users-out");
+function hideUsersOut() {
+  const el = usersOutEl();
+  if (el) { el.style.display = "none"; el.textContent = ""; }
+}
+function showUsersOut() {
+  const el = usersOutEl();
+  if (el) { el.style.display = ""; }
+}
+
+/* ========== AUTH ========== */
 async function register() {
-  // mapeo mínimo para evitar 422 si el select trae "resident"
   const rawRole = document.getElementById("reg-role").value;
   const role = rawRole === "resident" ? "user" : rawRole;
 
@@ -72,17 +83,26 @@ async function register() {
   const email = document.getElementById("reg-email").value;
   const password = document.getElementById("reg-pass").value;
 
-  if (!notEmpty(name))  return (document.getElementById("reg-out").textContent = "Nombre requerido");
-  if (!isEmail(email))  return (document.getElementById("reg-out").textContent = "Email inválido");
-  if (!notEmpty(password)) return (document.getElementById("reg-out").textContent = "Contraseña requerida");
-  if (!isValidRole(role))  return (document.getElementById("reg-out").textContent = 'Rol inválido (usa "user" o "admin")');
+  const out = document.getElementById("reg-out");
 
-  const body = { name, email, password, role };
+  if (!notEmpty(name))        { out.textContent = ""; showToast("Nombre requerido", "error"); return; }
+  if (!isEmail(email))        { out.textContent = ""; showToast("Email inválido", "error"); return; }
+  if (!notEmpty(password))    { out.textContent = ""; showToast("Contraseña requerida", "error"); return; }
+  if (!isValidRole(role))     { out.textContent = ""; showToast('Rol inválido (usa "user" o "admin")', "error"); return; }
+
   try {
-    const data = await api("/api/auth/register", "POST", body);
-    document.getElementById("reg-out").textContent = JSON.stringify(data, null, 2);
+    await api("/api/auth/register", "POST", { name, email, password, role });
+    // ✅ Éxito: sin JSON ni autolista
+    out.textContent = "";
+    showToast("Registro exitoso");
+    // limpiar campos
+    document.getElementById("reg-name").value = "";
+    document.getElementById("reg-email").value = "";
+    document.getElementById("reg-pass").value = "";
+    document.getElementById("reg-role").value = "resident";
   } catch (e) {
-    document.getElementById("reg-out").textContent = e.message;
+    out.textContent = "";
+    showToast(e.message || "Error registrando", "error");
   }
 }
 
@@ -107,7 +127,7 @@ async function login() {
   }
 }
 
-// ---- AMENITIES ----
+/* ========== AMENITIES ========== */
 async function createAmenity() {
   const name = document.getElementById("amenity-name").value;
   if (!notEmpty(name)) return (document.getElementById("amenities-out").textContent = "Nombre requerido");
@@ -127,7 +147,7 @@ async function listAmenities() {
   }
 }
 
-// ---- UNITS ----
+/* ========== UNITS ========== */
 async function createUnit() {
   const code = document.getElementById("unit-code").value;
   const owner_id = document.getElementById("unit-owner").value || null;
@@ -151,7 +171,7 @@ async function listUnits() {
   }
 }
 
-// ---- RESERVATIONS ----
+/* ========== RESERVATIONS ========== */
 async function createReservation() {
   const amenity_id = Number(document.getElementById("res-amenity").value);
   const user_id = Number(document.getElementById("res-user").value);
@@ -164,7 +184,6 @@ async function createReservation() {
     return (document.getElementById("reservations-out").textContent = "Fechas inválidas (usa YYYY-MM-DD HH:mm)");
   }
 
-  // Enviar como string "YYYY-MM-DD HH:mm" (tu backend valida solapamientos)
   try {
     const data = await api("/api/reservations", "POST", {
       amenity_id, user_id, start_at: start_raw, end_at: end_raw
@@ -183,7 +202,7 @@ async function listReservations() {
   }
 }
 
-// ---- TICKETS ----
+/* ========== TICKETS ========== */
 async function createTicket() {
   const body = {
     user_id: Number(document.getElementById("tk-user").value),
@@ -210,7 +229,7 @@ async function listTickets() {
   }
 }
 
-// ---- PAYMENTS ----
+/* ========== PAYMENTS ========== */
 async function createPayment() {
   const body = {
     user_id: Number(document.getElementById("pay-user").value),
@@ -238,23 +257,25 @@ async function listPayments() {
   }
 }
 
-// ======== USERS (CRUD) ========
+/* ========== USERS (CRUD) ========== */
 const USERS_PATH = "/api/users";
 
 async function listUsers() {
   try {
     const data = await api(USERS_PATH);
+    showUsersOut(); // ← mostrar SOLO cuando listamos
     document.getElementById("users-out").textContent = JSON.stringify(data, null, 2);
   } catch (e) {
+    showUsersOut();
     document.getElementById("users-out").textContent = e.message;
   }
 }
 
 async function createUser() {
-  // mapeo mínimo para rol
   const rawRole = document.getElementById("usr-role").value.trim();
   const role = rawRole === "resident" ? "user" : rawRole;
 
+  const out = document.getElementById("users-out");
   const body = {
     name: document.getElementById("usr-name").value.trim(),
     email: document.getElementById("usr-email").value.trim(),
@@ -262,23 +283,30 @@ async function createUser() {
     role: role || "user",
   };
 
-  if (!notEmpty(body.name))  return (document.getElementById("users-out").textContent = "Nombre requerido");
-  if (!isEmail(body.email))  return (document.getElementById("users-out").textContent = "Email inválido");
-  if (!notEmpty(body.password)) return (document.getElementById("users-out").textContent = "Contraseña requerida");
-  if (!isValidRole(body.role))  return (document.getElementById("users-out").textContent = 'Rol inválido (usa "user" o "admin")');
+  if (!notEmpty(body.name))     { hideUsersOut(); showToast("Nombre requerido", "error"); return; }
+  if (!isEmail(body.email))     { hideUsersOut(); showToast("Email inválido", "error"); return; }
+  if (!notEmpty(body.password)) { hideUsersOut(); showToast("Contraseña requerida", "error"); return; }
+  if (!isValidRole(body.role))  { hideUsersOut(); showToast('Rol inválido (usa "user" o "admin")', "error"); return; }
 
   try {
-    const data = await api(USERS_PATH, "POST", body);
-    document.getElementById("users-out").textContent = JSON.stringify(data, null, 2);
-    await listUsers();
+    await api(USERS_PATH, "POST", body);
+    hideUsersOut();                 // ✅ no mostrar JSON
+    showToast("Registro exitoso");  // ✅ solo notificación
+    // limpiar campos
+    document.getElementById("usr-name").value = "";
+    document.getElementById("usr-email").value = "";
+    document.getElementById("usr-pass").value = "";
+    document.getElementById("usr-role").value = "resident";
+    // importante: NO llamar listUsers() aquí
   } catch (e) {
-    document.getElementById("users-out").textContent = e.message;
+    hideUsersOut();
+    showToast(e.message || "Error creando usuario", "error");
   }
 }
 
 async function updateUser() {
   const id = Number(document.getElementById("usr-id").value);
-  if (!id) { document.getElementById("users-out").textContent = "Falta ID de usuario"; return; }
+  if (!id) { showUsersOut(); document.getElementById("users-out").textContent = "Falta ID de usuario"; return; }
 
   const body = {};
   const name = document.getElementById("usr-name").value.trim();
@@ -288,38 +316,42 @@ async function updateUser() {
 
   if (name) body.name = name;
   if (email) {
-    if (!isEmail(email)) return (document.getElementById("users-out").textContent = "Email inválido");
+    if (!isEmail(email)) { showUsersOut(); document.getElementById("users-out").textContent = "Email inválido"; return; }
     body.email = email;
   }
   if (password) body.password = password;
   if (role) {
     const mapped = role === "resident" ? "user" : role;
-    if (!isValidRole(mapped)) return (document.getElementById("users-out").textContent = 'Rol inválido (usa "user" o "admin")');
+    if (!isValidRole(mapped)) { showUsersOut(); document.getElementById("users-out").textContent = 'Rol inválido (usa "user" o "admin")'; return; }
     body.role = mapped;
   }
 
   try {
     const data = await api(`${USERS_PATH}/${id}`, "PUT", body);
+    showUsersOut();
     document.getElementById("users-out").textContent = JSON.stringify(data, null, 2);
     await listUsers();
   } catch (e) {
+    showUsersOut();
     document.getElementById("users-out").textContent = e.message;
   }
 }
 
 async function deleteUser() {
   const id = Number(document.getElementById("usr-id").value);
-  if (!id) { document.getElementById("users-out").textContent = "Falta ID de usuario"; return; }
+  if (!id) { showUsersOut(); document.getElementById("users-out").textContent = "Falta ID de usuario"; return; }
   try {
     const data = await api(`${USERS_PATH}/${id}`, "DELETE");
+    showUsersOut();
     document.getElementById("users-out").textContent = JSON.stringify(data, null, 2);
     await listUsers();
   } catch (e) {
+    showUsersOut();
     document.getElementById("users-out").textContent = e.message;
   }
 }
 
-// ---- LOGOUT (única definición) ----
+/* ========== LOGOUT ========== */
 function logout() {
   localStorage.removeItem("village_token");
   localStorage.removeItem("village_user_role");
@@ -336,12 +368,10 @@ function logout() {
 
   updateSessionBanner(null); // oculta el banner superior
   showAuth();                // muestra de nuevo el bloque de login/registro
-
-
 }
+window.logout = logout;
 
-// exponemos la función para que el onclick del botón la encuentre
-// ===== Banner de sesión (nombre y rol actual) =====
+/* ===== Banner de sesión (nombre y rol actual) ===== */
 function updateSessionBanner(user) {
   const sb = document.getElementById("session-banner");
   if (!sb) return; // seguridad
@@ -355,7 +385,7 @@ function updateSessionBanner(user) {
   sb.style.display = "";
 }
 
-// ==== Mostrar / ocultar sección de autenticación ====
+/* ==== Mostrar / ocultar sección de autenticación ==== */
 function hideAuth() {
   const auth = document.getElementById("auth");
   if (auth) auth.style.display = "none";
@@ -365,7 +395,7 @@ function showAuth() {
   if (auth) auth.style.display = "";
 }
 
-// Restaurar sesión al cargar la página
+/* ==== Restaurar sesión al cargar la página ==== */
 (async function bootstrapUI(){
   const tk = getToken();
   if (!tk) { showAuth(); return; }
@@ -389,5 +419,31 @@ function showAuth() {
   }
 })();
 
+/* ==== Toast ==== */
+function showToast(message, type = "success") {
+  const el = document.getElementById("toast");
+  if (!el) return alert(message); // fallback
+  el.textContent = message;
+  el.classList.remove("hidden", "error", "show");
+  if (type === "error") el.classList.add("error");
+  // mostrar
+  requestAnimationFrame(() => el.classList.add("show"));
+  // ocultar a los 2.5s
+  setTimeout(() => {
+    el.classList.remove("show");
+    setTimeout(() => el.classList.add("hidden"), 250);
+  }, 2500);
+}
 
-window.logout = logout;
+/* ==== Al cargar DOM ==== */
+document.addEventListener("DOMContentLoaded", () => {
+  showAuth();      // se ocultará tras login
+  hideUsersOut();  // oculta el área JSON de usuarios al inicio
+  // Evita submit por defecto si hay formularios
+  document.querySelectorAll("form").forEach(f =>
+    f.addEventListener("submit", e => e.preventDefault())
+  );
+});
+
+
+

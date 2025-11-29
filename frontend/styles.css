@@ -118,3 +118,24 @@ pre{ white-space:pre-wrap; word-break:break-word; }
 @media (max-width: 420px){
   .nav{ display:none; } /* la barra se simplifica en móviles muy estrechos */
 }
+
+.toast {
+  position: fixed;
+  right: 16px;
+  top: 16px;
+  padding: 12px 16px;
+  background: #16a34a; /* verde */
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.15);
+  font-weight: 600;
+  z-index: 9999;
+  opacity: 0;
+  transform: translateY(-8px);
+  transition: opacity .25s ease, transform .25s ease;
+}
+.toast.error { background: #dc2626; }      /* rojo para errores */
+.toast.show  { opacity: 1; transform: translateY(0); }
+.hidden      { display: none; }
+
+
