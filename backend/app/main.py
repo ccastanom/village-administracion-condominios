@@ -286,6 +286,29 @@ def list_reservations(db: Session = Depends(get_db), user=Depends(get_current_us
     return db.query(models.Reservation).all()
 
 
+@app.delete("/api/reservations/{res_id}", status_code=204, tags=["reservations"])
+def delete_reservation(
+    res_id: int,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    r = db.get(models.Reservation, res_id)  # o db.query(models.Reservation).get(res_id)
+    if not r:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    # Permisos: admin o dueño de la reserva
+    if getattr(user, "role", "") != "admin" and r.user_id != user.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    db.delete(r)
+    db.commit()
+    return Response(status_code=204)
+# 👆👆 FIN DELETE 👆👆
+
+
+
+
+
 # -------------------- MAINTENANCE --------------------
 @app.post("/api/tickets", response_model=schemas.TicketOut, tags=["maintenance"])
 def create_ticket(

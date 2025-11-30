@@ -58,7 +58,35 @@ async function api(path, method = "GET", body = null) {
   if (!res.ok) throw new Error(txt || `HTTP ${res.status}`);
 
   try { return txt ? JSON.parse(txt) : {}; } catch { return {}; }
+
 }
+
+
+async function deleteReservation(id) {
+  if (!id || isNaN(Number(id))) {
+    showToast("ID de reserva inválido", "error");
+    return;
+  }
+  try {
+    await api(`/api/reservations/${id}`, "DELETE");
+    showToast("Reserva eliminada");
+    listReservations();
+  } catch (e) {
+    showToast(e.message || "No se pudo eliminar la reserva", "error");
+    console.error("deleteReservation error:", e);
+  }
+}
+
+// expón al scope global si usas onclick="..."
+window.deleteReservation = deleteReservation;
+
+
+
+
+
+
+
+
 
 /* -------------------- Helpers visuales de USUARIOS -------------------- */
 const usersOutEl = () => document.getElementById("users-out");
@@ -416,24 +444,130 @@ async function createReservation() {
   }
 }
 
+
+
 async function listReservations() {
-  const out = document.getElementById("reservations-out"); // oculto; solo para errores
+  const out = document.getElementById("reservations-out"); // queda oculto (solo errores)
+  const summaryEl   = document.getElementById("res-summary");
+  const upWrapEl    = document.getElementById("res-upcoming");
+  const pastWrapEl  = document.getElementById("res-past");
+  const pastTitleEl = document.getElementById("res-past-title");
+
   try {
     const data = await api("/api/reservations");
     const me   = getCurrentUser();
     const role = (me.role || localStorage.getItem("village_user_role") || "");
 
-    const items = role === "user"
-      ? (data || []).filter(r => r.user_id === me.id)
-      : (data || []);
+    // Si el rol es user, sólo ve las suyas
+    const items = role === "user" ? (data || []).filter(r => r.user_id === me.id) : (data || []);
 
-    renderReservations(items);
+    // Ordenar por inicio
+    items.sort((a,b) => new Date(a.start_at) - new Date(b.start_at));
+
+    const upcoming = items.filter(r => !isPast(r.end_at));
+    const past     = items.filter(r =>  isPast(r.end_at));
+
+    // Render helpers
+    const canDelete = (res) => role === "admin" || res.user_id === me.id;
+    const cardHTML = (r, withDelete) => {
+      const title = `Reserva #${r.id}`;
+      const meta1 = `Amenidad: ${r.amenity_id} — Usuario: ${r.user_id}`;
+      const meta2 = `${fmt(r.start_at)} → ${fmt(r.end_at)}`;
+      const btn   = withDelete && canDelete(r)
+        ? `<button class="chip danger" onclick="deleteReservation(${r.id})">Eliminar</button>`
+        : "";
+      return `
+        <div class="res-card">
+          <div class="res-card-header">
+            <strong>${title}</strong>
+          </div>
+          <div class="res-card-body">
+            <div class="meta">${meta1}</div>
+            <div class="time">${meta2}</div>
+          </div>
+          <div class="res-card-actions">
+            ${btn}
+          </div>
+        </div>`;
+    };
+
+    // Resumen
+    summaryEl.textContent = `Mis Reservas (${items.length}) — Próximas (${upcoming.length}) — Pasadas (${past.length})`;
+
+    // Próximas (con botón eliminar)
+    upWrapEl.innerHTML = upcoming.length
+      ? upcoming.map(r => cardHTML(r, true)).join("")
+      : `<div class="muted">—</div>`;
+
+    // Pasadas (sin botón)
+    pastWrapEl.innerHTML = past.length
+      ? past.map(r => cardHTML(r, false)).join("")
+      : `<div class="muted">—</div>`;
+
+    pastTitleEl.style.display = past.length ? "" : "none";
+
+    // Oculta área técnica
+    out.style.display = "none";
+    out.textContent = "";
   } catch (e) {
-    if (out) { out.style.display = "block"; out.textContent = e.message; }
+    out.style.display = "";
+    out.textContent = e.message;
     showToast(e.message || "Error listando reservas", "error");
     console.error("listReservations error:", e);
   }
 }
+
+
+// ---- DELETE RESERVATION (con fallback plural/singular) ----
+async function deleteReservation(id) {
+  const out = document.getElementById("reservations-out");
+  if (!Number.isInteger(id) || id < 1) {
+    showToast("ID de reserva inválido", "error");
+    return;
+  }
+
+  // helper que intenta un endpoint y devuelve true/false
+  const tryDelete = async (path) => {
+    try {
+      await api(path, "DELETE");
+      return true;
+    } catch (e) {
+      // si no es 404, relanza para mostrar el error real
+      if (!/404|Not Found/i.test(String(e))) throw e;
+      return false;
+    }
+  };
+
+  try {
+    // 1) intento con /api/reservations/{id}
+    let ok = await tryDelete(`/api/reservations/${id}`);
+
+    // 2) si no existe, intento con /api/reservation/{id}
+    if (!ok) ok = await tryDelete(`/api/reservation/${id}`);
+
+    if (!ok) {
+      showToast("Ruta DELETE de reservas no encontrada en el backend", "error");
+      out.textContent = `La API devolvió 404 para ambos paths: 
+- DELETE /api/reservations/${id}
+- DELETE /api/reservation/${id}`;
+      return;
+    }
+
+    showToast("Reserva eliminada");
+    await listReservations();
+  } catch (e) {
+    out.textContent = e.message || String(e);
+    showToast(e.message || "No se pudo eliminar la reserva", "error");
+    console.error("deleteReservation error:", e);
+  }
+}
+
+// expón global si aún no lo hiciste
+window.deleteReservation = deleteReservation;
+
+
+
+
 
 // Pinta tarjetas
 function renderReservations(items) {
