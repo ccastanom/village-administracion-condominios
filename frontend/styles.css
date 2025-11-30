@@ -75,6 +75,7 @@ textarea{ min-height:96px; resize:vertical; }
 /* Actions & buttons */
 .actions{ display:flex; gap:8px; margin-top:10px; }
 .actions.wrap{ flex-wrap:wrap; }
+.actions.right{ justify-content:flex-end; }
 button{
   background:var(--surface-2); border:1px solid var(--border);
   border-radius:10px; padding:10px 14px; cursor:pointer;
@@ -119,6 +120,7 @@ pre{ white-space:pre-wrap; word-break:break-word; }
   .nav{ display:none; } /* la barra se simplifica en móviles muy estrechos */
 }
 
+/* Toast */
 .toast {
   position: fixed;
   right: 16px;
@@ -138,6 +140,7 @@ pre{ white-space:pre-wrap; word-break:break-word; }
 .toast.show  { opacity: 1; transform: translateY(0); }
 .hidden      { display: none; }
 
+/* ===== Tarjetas / grids genéricos ===== */
 
 .cards-grid {
   display: grid;
@@ -145,15 +148,29 @@ pre{ white-space:pre-wrap; word-break:break-word; }
   gap: 12px;
 }
 
+/* Tarjetas de reservas reutilizables */
 .res-card {
-  border: 1px solid var(--border, #e8e8e8);
-  background: var(--card, #fff);
+  border: 1px solid var(--border, #e5e7eb);
   border-radius: 14px;
-  padding: 12px;
-  box-shadow: 0 1px 2px rgba(0,0,0,.05);
+  padding: 12px 14px;
+  background: var(--surface, #fff);
+  box-shadow: 0 1px 2px rgba(15,23,42,.05);
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.res-card-header { margin-bottom: 4px; }
+
+.res-card-body .meta {
+  color: var(--muted);
+  font-size: .9rem;
+}
+.res-card-body .time {
+  margin-top: 4px;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 13px;
 }
 
 .res-card .row.space {
@@ -166,11 +183,13 @@ pre{ white-space:pre-wrap; word-break:break-word; }
 .res-card .title { font-weight: 600; }
 .res-card .small { font-size: 12px; }
 
-.res-card .time {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  font-size: 13px;
+.res-card-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
 }
 
+/* Badges de estado */
 .badge {
   padding: 2px 8px;
   border-radius: 999px;
@@ -185,33 +204,19 @@ pre{ white-space:pre-wrap; word-break:break-word; }
 .badge.approved { background:#e6ffed; color:#2c7a7b; border-color:rgba(44,122,123,.2); }
 .badge.rejected { background:#ffe6e6; color:#c53030; border-color:rgba(197,48,48,.2); }
 
-.res-card .actions.right { display:flex; justify-content:flex-end; margin-top:6px; }
-button.sm { font-size:12px; padding:6px 10px; border-radius:10px; }
-
-
-.cards-grid {
-  display: grid;
-  gap: 12px;
+.res-card .actions.right {
+  display:flex;
+  justify-content:flex-end;
+  margin-top:6px;
 }
 
-.res-card {
-  border: 1px solid #eee;
-  border-radius: 12px;
-  padding: 12px 14px;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0,0,0,.04);
+button.sm {
+  font-size:12px;
+  padding:6px 10px;
+  border-radius:10px;
 }
 
-.res-card-header { margin-bottom: 6px; }
-.res-card-body .meta { color: #6b7280; font-size: .9rem; }
-.res-card-body .time { margin-top: 4px; font-weight: 600; }
-
-.res-card-actions {
-  margin-top: 10px;
-  display: flex;
-  gap: 8px;
-}
-
+/* Chip roja reutilizable (botón eliminar en tarjetas) */
 .chip.danger, .danger.chip, .danger {
   background: #ef4444;
   color: #fff;
@@ -219,4 +224,203 @@ button.sm { font-size:12px; padding:6px 10px; border-radius:10px; }
   padding: 6px 10px;
   border-radius: 999px;
   cursor: pointer;
+}
+
+/* ===== Historial de Reservas ===== */
+
+#res-summary {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  font-size:13px;
+  font-weight:500;
+}
+
+#res-past-title {
+  margin-top:12px;
+  font-size:14px;
+  font-weight:600;
+  color:var(--muted);
+}
+
+/* ===== Historial de Pagos — “bonito” ===== */
+
+/* Contenedor del resumen de pagos */
+#payments-summary {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 12px;
+  border-radius:999px;
+  background:#e0ecff;
+  color:#1d4ed8;
+  border:1px solid rgba(37,99,235,.25);
+  font-size:13px;
+  font-weight:600;
+}
+
+/* Línea de totales por método (debajo del resumen) */
+#payments-methods {
+  margin-top:8px;
+  font-size:13px;
+  color:var(--muted);
+}
+
+/* Lista de tarjetas (las que genera JS con class="card") */
+#payments-list {
+  margin-top:14px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+/* Afinar tarjetas de pago sin romper el resto de .card */
+#payments-list .card {
+  padding:12px 14px;
+  border-radius:14px;
+  border:1px solid var(--border);
+  box-shadow:0 1px 3px rgba(15,23,42,.06);
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+#payments-list .row.space {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+}
+
+#payments-list .muted.small {
+  font-size:12px;
+  color:var(--muted);
+}
+
+#payments-list strong {
+  font-size:14px;
+}
+
+/* Monto y fecha alineados */
+#payments-list .row.space > div:first-child {
+  font-weight:600;
+}
+
+/* ===== Tickets ===== */
+
+#tickets-summary {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  font-size:13px;
+  font-weight:500;
+}
+
+#tickets-list {
+  margin-top:12px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+
+/* Utilidad de texto pequeño */
+.small{ font-size:12px; }
+
+
+/* ===== Listado de Usuarios ===== */
+
+#users-summary {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  font-size:13px;
+  font-weight:500;
+}
+
+#users-list {
+  margin-top:4px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.user-card {
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:10px 12px;
+  background:#fff;
+  box-shadow:0 1px 2px rgba(15,23,42,.04);
+}
+
+.user-title {
+  font-weight:600;
+  margin-bottom:2px;
+}
+
+/* badges para roles */
+.badge-admin {
+  background:#fee2e2;
+  color:#b91c1c;
+  border-color:rgba(185,28,28,.2);
+}
+
+.badge-user {
+  background:#dcfce7;
+  color:#166534;
+  border-color:rgba(22,101,52,.2);
+}
+
+/* ===== Listado de Unidades ===== */
+
+#units-summary {
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border-radius:999px;
+  background:var(--surface-2);
+  border:1px solid var(--border);
+  font-size:13px;
+  font-weight:500;
+}
+
+#units-list {
+  margin-top:6px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.unit-card {
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:10px 12px;
+  background:#fff;
+  box-shadow:0 1px 2px rgba(15,23,42,.04);
+}
+
+.unit-title {
+  font-weight:600;
+  margin-bottom:2px;
+}
+
+.unit-owner {
+  text-align:right;
+}
+
+.unit-owner-name {
+  font-size:13px;
+  font-weight:500;
 }

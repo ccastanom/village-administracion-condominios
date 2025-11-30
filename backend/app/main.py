@@ -18,6 +18,8 @@ from .auth import (
     get_current_user,
     require_role,
 )
+from fastapi import FastAPI, Depends, HTTPException, Response, Query
+
 
 # -------------------- APP & CORS & FRONTEND --------------------
 
@@ -199,22 +201,40 @@ def list_units(db: Session = Depends(get_db), user=Depends(get_current_user)):
 
 @app.delete("/api/units/{unit_id}", status_code=204, tags=["units"])
 def delete_unit(
-    unit_id: int, db: Session = Depends(get_db), user=Depends(require_role("admin"))
+    unit_id: int,
+    detach: bool = Query(False),
+    db: Session = Depends(get_db),
+    user=Depends(require_role("admin")),
 ):
     unit = db.query(models.Unit).get(unit_id)
     if not unit:
         raise HTTPException(status_code=404, detail="Unidad no encontrada")
 
     try:
+        if detach:
+            # Soltar referencias (poner unit_id = NULL) en tickets y pagos
+            db.query(models.MaintenanceTicket).filter(
+                models.MaintenanceTicket.unit_id == unit_id
+            ).update({models.MaintenanceTicket.unit_id: None}, synchronize_session=False)
+
+            db.query(models.Payment).filter(
+                models.Payment.unit_id == unit_id
+            ).update({models.Payment.unit_id: None}, synchronize_session=False)
+
+            db.commit()  # Guardar los NULL antes de borrar la unidad
+
         db.delete(unit)
         db.commit()
         return Response(status_code=204)
+
     except IntegrityError:
         db.rollback()
+        # Si aún quedan referencias (por triggers, FK sin permitir NULL, etc.)
         raise HTTPException(
             status_code=409,
             detail="No se puede eliminar: existen pagos/tickets que referencian esta unidad",
         )
+
 
 
 # -------------------- AMENITIES --------------------

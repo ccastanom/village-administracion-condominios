@@ -98,7 +98,12 @@
               <button class="danger" onclick="deleteUser()">Eliminar usuario (por ID)</button>
             </div>
 
-            <pre id="users-out" class="output"></pre>
+            <!-- Resumen + lista bonita -->
+            <div id="users-summary" class="muted small" style="margin:8px 0 10px 0"></div>
+            <div id="users-list" class="cards-grid" style="margin-top:4px"></div>
+
+            <!-- Área técnica solo para errores -->
+            <pre id="users-out" class="output" style="display:none"></pre>
           </div>
         </div>
       </section>
@@ -163,7 +168,12 @@
               <button class="danger" onclick="deleteUnit()">Eliminar unidad</button>
             </div>
 
-            <pre id="units-out" class="output"></pre>
+            <!-- Resumen + lista bonita -->
+            <div id="units-summary" class="muted small" style="margin:8px 0 10px 0"></div>
+            <div id="units-list" class="cards-grid" style="margin-top:4px"></div>
+
+            <!-- Área técnica solo para errores -->
+            <pre id="units-out" class="output" style="display:none"></pre>
           </div>
         </div>
       </section>
@@ -221,6 +231,7 @@
       <section id="tickets" class="section" data-role="any" style="display:none">
         <h2>Mantenimiento</h2>
         <div class="row">
+          <!-- Nuevo Ticket -->
           <div class="card">
             <h3>Nuevo Ticket</h3>
             <div class="grid">
@@ -242,23 +253,18 @@
             </div>
           </div>
 
+          <!-- Listado con tarjetas -->
           <div class="card">
-            <h3>Listado</h3>
-            <div class="actions">
+            <div class="row" style="align-items:center; justify-content:space-between; gap:12px">
+              <h3 style="margin:0">Listado</h3>
               <button class="ghost" onclick="listTickets()">Refrescar</button>
             </div>
 
-            <!-- Eliminar ticket -->
-            <div class="grid" style="margin-top:8px">
-              <label>ID de ticket (eliminar)
-                <input id="tk-id" type="number" min="1" placeholder="ej. 2" />
-              </label>
-            </div>
-            <div class="actions">
-              <button class="danger" onclick="deleteTicket()">Eliminar ticket</button>
-            </div>
+            <!-- Resumen -->
+            <div id="tickets-summary" class="muted" style="margin:8px 0 12px 0"></div>
 
-            <pre id="tickets-out" class="output"></pre>
+            <!-- Aquí se pintan las tarjetas -->
+            <div id="tickets-list" class="stack" style="gap:12px"></div>
           </div>
         </div>
       </section>
@@ -267,6 +273,7 @@
       <section id="payments" class="section" data-role="any" style="display:none">
         <h2>Pagos (mock)</h2>
         <div class="row">
+          <!-- Nuevo Pago -->
           <div class="card">
             <h3>Nuevo Pago</h3>
             <div class="grid">
@@ -277,7 +284,7 @@
                 <input id="pay-unit" placeholder="ej. 1" />
               </label>
               <label>Monto
-                <input id="pay-amount" placeholder="ej. 150.00" />
+                <input id="pay-amount" placeholder="ej. 150.000" />
               </label>
               <label>Método
                 <select id="pay-method">
@@ -292,14 +299,26 @@
             </div>
           </div>
 
+          <!-- Historial (bonito, sin JSON) -->
           <div class="card">
             <h3>Historial</h3>
-            <div class="actions">
+
+            <div class="actions" style="gap:8px">
               <button class="ghost" onclick="listPayments()">Refrescar</button>
+              <span id="payments-summary" class="muted"></span>
             </div>
 
-            <!-- Eliminar pago -->
-            <div class="grid" style="margin-top:8px">
+            <!-- Totales por método (solo admin) -->
+            <div id="payments-methods" class="muted small" style="margin:8px 0"></div>
+
+            <!-- Lista de pagos en tarjetas -->
+            <div id="payments-list"></div>
+
+            <!-- Campo técnico oculto para errores -->
+            <pre id="payments-out" class="output" style="display:none"></pre>
+
+            <!-- Eliminar pago por ID -->
+            <div class="grid" style="margin-top:12px">
               <label>ID de pago (eliminar)
                 <input id="pay-id" type="number" min="1" placeholder="ej. 5" />
               </label>
@@ -307,8 +326,6 @@
             <div class="actions">
               <button class="danger" onclick="deletePayment()">Eliminar pago</button>
             </div>
-
-            <pre id="payments-out" class="output"></pre>
           </div>
         </div>
       </section>
@@ -318,7 +335,7 @@
       </section>
     </main>
 
-    <script src="./app.js?v=toast15"></script>
+    <script src="./app.js?v=toast18"></script>
     <div id="toast" class="toast hidden"></div>
   </body>
 </html>
