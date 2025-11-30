@@ -25,12 +25,11 @@
     </header>
 
     <main class="container">
-      <!-- 🔒 Ocultar texto gris hasta que haya sesión -->
       <p class="muted center" data-role="any" style="display:none">
         Login → Usuarios → Reservas → Mantenimiento → Pagos (mock)
       </p>
 
-      <!-- Banner de sesión actual (solo nombre y rol) -->
+      <!-- Banner sesión -->
       <section class="section" id="session-banner" style="display:none">
         <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
           <div>
@@ -40,7 +39,7 @@
         </div>
       </section>
 
-      <!-- 1) AUTENTICACIÓN (solo Login) -->
+      <!-- 1) AUTENTICACIÓN -->
       <section id="auth" class="section">
         <div class="row" style="place-items:center; min-height:40vh;">
           <div class="card" style="max-width:560px">
@@ -61,9 +60,9 @@
         </div>
       </section>
 
-      <!-- 2) USUARIOS (CRUD) -->
+      <!-- 2) USUARIOS -->
       <section id="users" class="section" data-role="admin-only" style="display:none">
-        <h2> Usuarios</h2>
+        <h2>Usuarios</h2>
         <div class="row">
           <div class="card">
             <h3>Crear / Actualizar / Eliminar</h3>
@@ -106,7 +105,7 @@
 
       <!-- 3) DATOS BASE -->
       <section id="data" class="section" data-role="admin-only" style="display:none">
-        <h2> Datos base (admin)</h2>
+        <h2>Datos base (admin)</h2>
         <div class="row">
           <div class="card">
             <h3>Áreas comunes</h3>
@@ -118,6 +117,17 @@
               <button onclick="createAmenity()">Crear</button>
               <button class="ghost" onclick="listAmenities()">Listar</button>
             </div>
+
+            <!-- Eliminar área común -->
+            <div class="grid" style="margin-top:8px">
+              <label>ID de área común (eliminar)
+                <input id="amenity-id" type="number" min="1" placeholder="ej. 1" />
+              </label>
+            </div>
+            <div class="actions">
+              <button class="danger" onclick="deleteAmenity()">Eliminar área común</button>
+            </div>
+
             <pre id="amenities-out" class="output"></pre>
           </div>
 
@@ -143,7 +153,7 @@
               <button class="ghost" onclick="listUnits()">Listar</button>
             </div>
 
-            <!-- NUEVO: eliminar unidad -->
+            <!-- Eliminar unidad -->
             <div class="grid" style="margin-top:8px">
               <label>ID de unidad (para eliminar)
                 <input id="unit-id" type="number" min="1" placeholder="ej. 3" />
@@ -160,7 +170,7 @@
 
       <!-- 4) RESERVAS -->
       <section id="reservations" class="section" data-role="any" style="display:none">
-        <h2>4) Reservas</h2>
+        <h2>Reservas</h2>
         <div class="row">
           <div class="card">
             <h3>Nueva Reserva</h3>
@@ -195,7 +205,7 @@
 
       <!-- 5) MANTENIMIENTO -->
       <section id="tickets" class="section" data-role="any" style="display:none">
-        <h2>5) Mantenimiento</h2>
+        <h2>Mantenimiento</h2>
         <div class="row">
           <div class="card">
             <h3>Nuevo Ticket</h3>
@@ -223,6 +233,17 @@
             <div class="actions">
               <button class="ghost" onclick="listTickets()">Refrescar</button>
             </div>
+
+            <!-- Eliminar ticket -->
+            <div class="grid" style="margin-top:8px">
+              <label>ID de ticket (eliminar)
+                <input id="tk-id" type="number" min="1" placeholder="ej. 2" />
+              </label>
+            </div>
+            <div class="actions">
+              <button class="danger" onclick="deleteTicket()">Eliminar ticket</button>
+            </div>
+
             <pre id="tickets-out" class="output"></pre>
           </div>
         </div>
@@ -230,7 +251,7 @@
 
       <!-- 6) PAGOS -->
       <section id="payments" class="section" data-role="any" style="display:none">
-        <h2>6) Pagos (mock)</h2>
+        <h2>Pagos (mock)</h2>
         <div class="row">
           <div class="card">
             <h3>Nuevo Pago</h3>
@@ -262,18 +283,28 @@
             <div class="actions">
               <button class="ghost" onclick="listPayments()">Refrescar</button>
             </div>
+
+            <!-- Eliminar pago -->
+            <div class="grid" style="margin-top:8px">
+              <label>ID de pago (eliminar)
+                <input id="pay-id" type="number" min="1" placeholder="ej. 5" />
+              </label>
+            </div>
+            <div class="actions">
+              <button class="danger" onclick="deletePayment()">Eliminar pago</button>
+            </div>
+
             <pre id="payments-out" class="output"></pre>
           </div>
         </div>
       </section>
 
-      <!-- Cerrar sesión solo cuando hay sesión -->
       <section class="section center" data-role="any" style="display:none">
         <button class="chip" onclick="logout()">Cerrar sesión</button>
       </section>
     </main>
 
-    <script src="./app.js?v=toast6"></script>
+    <script src="./app.js?v=toast12"></script>
     <div id="toast" class="toast hidden"></div>
   </body>
 </html>

@@ -1,26 +1,27 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 from pathlib import Path
+from pydantic import BaseModel, EmailStr
 
 from .database import Base, engine, get_db
 from . import models, schemas
-from .auth import hash_password, verify_password, create_access_token, get_current_user, require_role
-from pydantic import BaseModel, EmailStr
-from typing import Optional
-from fastapi import Response  # ← agrega esto
-
+from .auth import (
+    hash_password,
+    verify_password,
+    create_access_token,
+    get_current_user,
+    require_role,
+)
 
 # -------------------- APP & CORS & FRONTEND --------------------
 
-
-
-# --- Modelo de actualización (para no tocar schemas.py) ---
+# Modelo de actualización (para no tocar schemas.py)
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     email: Optional[EmailStr] = None
@@ -28,52 +29,51 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     is_active: Optional[bool] = None
 
-# 1) Crear la app primero
+
+# 1) Crear la app
 app = FastAPI(title="Village - Gestión de Condominios")
 
-# 2) CORS (permite orígenes locales comunes)
+# 2) CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://127.0.0.1:5500", "http://localhost:5500",  # Live Server
-        "http://127.0.0.1:4200", "http://localhost:4200",  # Angular (si lo usas luego)
-        "http://127.0.0.1:5173", "http://localhost:5173",  # python -m http.server
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",  # Live Server
+        "http://127.0.0.1:4200",
+        "http://localhost:4200",  # Angular
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",  # python -m http.server
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],  # incluye Authorization
 )
 
-# 3) Montar el frontend en /app  (ruta: <raíz del repo>/frontend)
+# 3) Montar el frontend en /app
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
 app.mount("/app", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="app")
 
+
 @app.get("/", response_class=HTMLResponse)
 def root():
-    # Redirige al frontend
     return '<meta http-equiv="refresh" content="0; url=/app/index.html" />'
 
-# 4) Crear tablas automáticamente en MySQL
+
+# 4) Crear tablas automáticamente
 Base.metadata.create_all(bind=engine)
 
 # -------------------- AUTH --------------------
 @app.post("/api/auth/register", response_model=schemas.UserOut, tags=["auth"])
 def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
-    """
-    Registro de nuevos usuarios (admin o residente).
-    Evita duplicar correos y usa hash seguro para contraseñas.
-    """
-    # Verificar si el correo ya existe
     existing_user = db.query(models.User).filter_by(email=user_in.email).first()
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # Crear usuario con contraseña cifrada
     user = models.User(
         name=user_in.name,
         email=user_in.email,
         hashed_password=hash_password(user_in.password),
-        role=user_in.role
+        role=user_in.role,
     )
 
     try:
@@ -91,9 +91,6 @@ def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/api/auth/login", tags=["auth"])
 def login(creds: schemas.UserLogin, db: Session = Depends(get_db)):
-    """
-    Login del usuario: verifica email/contraseña y genera token JWT.
-    """
     user = db.query(models.User).filter_by(email=creds.email).first()
     if not user or not verify_password(creds.password, user.hashed_password):
         raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -102,8 +99,14 @@ def login(creds: schemas.UserLogin, db: Session = Depends(get_db)):
     return {
         "access_token": token,
         "token_type": "bearer",
-        "user": {"id": user.id, "name": user.name, "role": user.role}
+        "user": {"id": user.id, "name": user.name, "role": user.role},
     }
+
+
+# 👇 NUEVO: /me (lo usa el frontend)
+@app.get("/api/auth/me", response_model=schemas.UserOut, tags=["auth"])
+def me(user=Depends(get_current_user)):
+    return user
 
 
 # -------------------- USERS (solo admin) --------------------
@@ -111,10 +114,13 @@ def login(creds: schemas.UserLogin, db: Session = Depends(get_db)):
 def list_users(db: Session = Depends(get_db), user=Depends(require_role("admin"))):
     return db.query(models.User).all()
 
-# 👇 NUEVO: crear usuario (vía admin)
+
 @app.post("/api/users", response_model=schemas.UserOut, tags=["users"])
-def create_user_admin(user_in: schemas.UserCreate, db: Session = Depends(get_db), user=Depends(require_role("admin"))):
-    # Evitar duplicados
+def create_user_admin(
+    user_in: schemas.UserCreate,
+    db: Session = Depends(get_db),
+    user=Depends(require_role("admin")),
+):
     if db.query(models.User).filter_by(email=user_in.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
 
@@ -122,21 +128,25 @@ def create_user_admin(user_in: schemas.UserCreate, db: Session = Depends(get_db)
         name=user_in.name,
         email=user_in.email,
         hashed_password=hash_password(user_in.password),
-        role=user_in.role
+        role=user_in.role,
     )
     db.add(u)
     db.commit()
     db.refresh(u)
     return u
 
-# 👇 NUEVO: actualizar usuario por ID (campos parciales)
+
 @app.put("/api/users/{user_id}", response_model=schemas.UserOut, tags=["users"])
-def update_user(user_id: int, body: UserUpdate, db: Session = Depends(get_db), user=Depends(require_role("admin"))):
+def update_user(
+    user_id: int,
+    body: UserUpdate,
+    db: Session = Depends(get_db),
+    user=Depends(require_role("admin")),
+):
     u = db.query(models.User).get(user_id)
     if not u:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # email duplicado
     if body.email and body.email != u.email:
         if db.query(models.User).filter(models.User.email == body.email).first():
             raise HTTPException(status_code=400, detail="Email already registered")
@@ -155,9 +165,11 @@ def update_user(user_id: int, body: UserUpdate, db: Session = Depends(get_db), u
     db.refresh(u)
     return u
 
-# 👇 NUEVO: eliminar usuario por ID
+
 @app.delete("/api/users/{user_id}", tags=["users"])
-def delete_user(user_id: int, db: Session = Depends(get_db), user=Depends(require_role("admin"))):
+def delete_user(
+    user_id: int, db: Session = Depends(get_db), user=Depends(require_role("admin"))
+):
     u = db.query(models.User).get(user_id)
     if not u:
         raise HTTPException(status_code=404, detail="User not found")
@@ -166,10 +178,13 @@ def delete_user(user_id: int, db: Session = Depends(get_db), user=Depends(requir
     return {"detail": "deleted"}
 
 
-
 # -------------------- UNITS --------------------
 @app.post("/api/units", response_model=schemas.UnitOut, tags=["units"])
-def create_unit(unit_in: schemas.UnitIn, db: Session = Depends(get_db), user=Depends(require_role("admin"))):
+def create_unit(
+    unit_in: schemas.UnitIn,
+    db: Session = Depends(get_db),
+    user=Depends(require_role("admin")),
+):
     unit = models.Unit(**unit_in.dict())
     db.add(unit)
     db.commit()
@@ -181,11 +196,11 @@ def create_unit(unit_in: schemas.UnitIn, db: Session = Depends(get_db), user=Dep
 def list_units(db: Session = Depends(get_db), user=Depends(get_current_user)):
     return db.query(models.Unit).all()
 
+
 @app.delete("/api/units/{unit_id}", status_code=204, tags=["units"])
-def delete_unit(unit_id: int, 
-                db: Session = Depends(get_db), 
-                user=Depends(require_role("admin"))):
-    # usa el mismo estilo que ya usas en users (query().get)
+def delete_unit(
+    unit_id: int, db: Session = Depends(get_db), user=Depends(require_role("admin"))
+):
     unit = db.query(models.Unit).get(unit_id)
     if not unit:
         raise HTTPException(status_code=404, detail="Unidad no encontrada")
@@ -193,21 +208,22 @@ def delete_unit(unit_id: int,
     try:
         db.delete(unit)
         db.commit()
-        return Response(status_code=204)   # No Content
+        return Response(status_code=204)
     except IntegrityError:
         db.rollback()
-        # hay pagos/tickets que referencian esta unidad
         raise HTTPException(
             status_code=409,
-            detail="No se puede eliminar: existen pagos/tickets que referencian esta unidad"
+            detail="No se puede eliminar: existen pagos/tickets que referencian esta unidad",
         )
-
-
 
 
 # -------------------- AMENITIES --------------------
 @app.post("/api/amenities", response_model=schemas.AmenityOut, tags=["amenities"])
-def create_amenity(amenity_in: schemas.AmenityIn, db: Session = Depends(get_db), user=Depends(require_role("admin"))):
+def create_amenity(
+    amenity_in: schemas.AmenityIn,
+    db: Session = Depends(get_db),
+    user=Depends(require_role("admin")),
+):
     a = models.Amenity(**amenity_in.dict())
     db.add(a)
     db.commit()
@@ -220,15 +236,41 @@ def list_amenities(db: Session = Depends(get_db), user=Depends(get_current_user)
     return db.query(models.Amenity).all()
 
 
+@app.delete("/api/amenities/{amenity_id}", status_code=204, tags=["amenities"])
+def delete_amenity(
+    amenity_id: int, db: Session = Depends(get_db), user=Depends(require_role("admin"))
+):
+    a = db.query(models.Amenity).get(amenity_id)
+    if not a:
+        raise HTTPException(status_code=404, detail="Amenidad no encontrada")
+    try:
+        db.delete(a)
+        db.commit()
+        return Response(status_code=204)
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="No se puede eliminar: existen reservas que referencian esta área común",
+        )
+
+
 # -------------------- RESERVATIONS --------------------
 @app.post("/api/reservations", response_model=schemas.ReservationOut, tags=["reservations"])
-def create_reservation(res_in: schemas.ReservationIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    # Validar solapamientos
-    overlap = db.query(models.Reservation).filter(
-        models.Reservation.amenity_id == res_in.amenity_id,
-        models.Reservation.start_at < res_in.end_at,
-        models.Reservation.end_at > res_in.start_at,
-    ).first()
+def create_reservation(
+    res_in: schemas.ReservationIn,
+    db: Session = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    overlap = (
+        db.query(models.Reservation)
+        .filter(
+            models.Reservation.amenity_id == res_in.amenity_id,
+            models.Reservation.start_at < res_in.end_at,
+            models.Reservation.end_at > res_in.start_at,
+        )
+        .first()
+    )
     if overlap:
         raise HTTPException(status_code=400, detail="Time slot not available")
 
@@ -246,7 +288,9 @@ def list_reservations(db: Session = Depends(get_db), user=Depends(get_current_us
 
 # -------------------- MAINTENANCE --------------------
 @app.post("/api/tickets", response_model=schemas.TicketOut, tags=["maintenance"])
-def create_ticket(t_in: schemas.TicketIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def create_ticket(
+    t_in: schemas.TicketIn, db: Session = Depends(get_db), user=Depends(get_current_user)
+):
     t = models.MaintenanceTicket(**t_in.dict())
     db.add(t)
     db.commit()
@@ -259,9 +303,23 @@ def list_tickets(db: Session = Depends(get_db), user=Depends(get_current_user)):
     return db.query(models.MaintenanceTicket).all()
 
 
+@app.delete("/api/tickets/{ticket_id}", status_code=204, tags=["maintenance"])
+def delete_ticket(
+    ticket_id: int, db: Session = Depends(get_db), user=Depends(require_role("admin"))
+):
+    t = db.query(models.MaintenanceTicket).get(ticket_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    db.delete(t)
+    db.commit()
+    return Response(status_code=204)
+
+
 # -------------------- VISITORS --------------------
 @app.post("/api/visitors", response_model=schemas.VisitorOut, tags=["visitors"])
-def allow_visitor(v_in: schemas.VisitorIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
+def allow_visitor(
+    v_in: schemas.VisitorIn, db: Session = Depends(get_db), user=Depends(get_current_user)
+):
     v = models.VisitorLog(**v_in.dict())
     db.add(v)
     db.commit()
@@ -276,8 +334,12 @@ def list_visitors(db: Session = Depends(get_db), user=Depends(require_role("admi
 
 # -------------------- PAYMENTS (mock) --------------------
 @app.post("/api/payments", response_model=schemas.PaymentOut, tags=["payments"])
-def create_payment(p_in: schemas.PaymentIn, db: Session = Depends(get_db), user=Depends(get_current_user)):
-    payment = models.Payment(**p_in.dict(), receipt=f"RCPT-{int(datetime.utcnow().timestamp())}")
+def create_payment(
+    p_in: schemas.PaymentIn, db: Session = Depends(get_db), user=Depends(get_current_user)
+):
+    payment = models.Payment(
+        **p_in.dict(), receipt=f"RCPT-{int(datetime.utcnow().timestamp())}"
+    )
     db.add(payment)
     db.commit()
     db.refresh(payment)
@@ -287,4 +349,16 @@ def create_payment(p_in: schemas.PaymentIn, db: Session = Depends(get_db), user=
 @app.get("/api/payments", response_model=List[schemas.PaymentOut], tags=["payments"])
 def list_payments(db: Session = Depends(get_db), user=Depends(get_current_user)):
     return db.query(models.Payment).all()
+
+
+@app.delete("/api/payments/{payment_id}", status_code=204, tags=["payments"])
+def delete_payment(
+    payment_id: int, db: Session = Depends(get_db), user=Depends(require_role("admin"))
+):
+    p = db.query(models.Payment).get(payment_id)
+    if not p:
+        raise HTTPException(status_code=404, detail="Pago no encontrado")
+    db.delete(p)
+    db.commit()
+    return Response(status_code=204)
 
