@@ -274,57 +274,247 @@ async function deleteUnit() {
 }
 
 
-/* -------------------- RESERVATIONS -------------------- */
+
+
+// ====== Helpers de fecha/hora (debe ir antes de RESERVATIONS) ======
+function pad2(n){ return String(n).padStart(2,"0"); }
+function normalizeFromDateObj(d){
+  if (isNaN(d)) return null;
+  return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+/**
+ * Acepta:
+ *  - "YYYY-MM-DD HH:mm"
+ *  - "YYYY/MM/DD HH:mm"
+ *  - "YYYYMMDD HH:mm"
+ *  - "YYYY-MM-DDTHH:mm" (input datetime-local)
+ * Devuelve "YYYY-MM-DD HH:mm" o null si inválida
+ */
+
+
+function parseDateInput(v){
+  if(!v) return null;
+  const s = String(v).trim();
+
+  // 1) datetime-local → "YYYY-MM-DDTHH:mm"
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(s)) {
+    const d = new Date(s);
+    return normalizeFromDateObj(d);
+  }
+
+  // 2) "YYYY-MM-DD HH:mm"
+  if (/^\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}$/.test(s)) {
+    const d = new Date(s.replace(" ", "T"));
+    return normalizeFromDateObj(d);
+  }
+
+  // 3) "YYYY/MM/DD HH:mm"
+  if (/^\d{4}\/\d{2}\/\d{2}\s+\d{1,2}:\d{2}$/.test(s)) {
+    const fixed = s.replace(/\//g, "-").replace(" ", "T");
+    const d = new Date(fixed);
+    return normalizeFromDateObj(d);
+  }
+
+  // 4) "YYYYMMDD HH:mm"
+  if (/^\d{8}\s+\d{1,2}:\d{2}$/.test(s)) {
+    const y = s.slice(0,4), m = s.slice(4,6), d = s.slice(6,8);
+    const time = s.split(/\s+/)[1];
+    const dt = `${y}-${m}-${d}T${time}`;
+    const D = new Date(dt);
+    return normalizeFromDateObj(D);
+  }
+
+  // 5) **NUEVO**: "DD/MM/YYYY HH:mm"
+  if (/^\d{2}\/\d{2}\/\d{4}\s+\d{1,2}:\d{2}$/.test(s)) {
+    // reordenamos a YYYY-MM-DDTHH:mm
+    const [datePart, timePart] = s.split(/\s+/);
+    const [dd, mm, yyyy] = datePart.split("/");
+    const iso = `${yyyy}-${mm}-${dd}T${timePart}`;
+    const d = new Date(iso);
+    return normalizeFromDateObj(d);
+  }
+
+  return null;
+}
+
+// Fecha para mostrar en UI: DD/MM/YYYY HH:mm
+function fmtDisplay(v){
+  const d = toDate(v); // usa tu helper actual
+  if (isNaN(d)) return v;
+  const pad = n => String(n).padStart(2,"0");
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+
+
+
+
+/* ===================== RESERVATIONS ===================== */
+
+/** De cualquier entrada válida → "YYYY-MM-DDTHH:mm:00" (ISO sin zona) */
+function toIsoSecondFromInput(v) {
+  const norm = parseDateInput(v);        // Usa tu helper existente
+  if (!norm) return null;                // norm = "YYYY-MM-DD HH:mm"
+  const [d, hm] = norm.split(" ");
+  return `${d}T${hm}:00`;
+}
+
 async function createReservation() {
-  const me = getCurrentUser();
+  const out  = document.getElementById("reservations-out");
+  const me   = getCurrentUser();
   const role = (me.role || localStorage.getItem("village_user_role") || "");
+
   const amenity_id = Number(document.getElementById("res-amenity").value);
-  const user_id = role === "user" ? Number(me.id) : Number(document.getElementById("res-user").value);
-  const start_raw = document.getElementById("res-start").value;
+  const user_id    = role === "user"
+    ? Number(me.id)
+    : Number(document.getElementById("res-user").value);
+
+  const start_raw = document.getElementById("res-start").value; // datetime-local o texto
   const end_raw   = document.getElementById("res-end").value;
 
-  if (!Number.isInteger(amenity_id)) return (document.getElementById("reservations-out").textContent = "amenity_id numérico");
-  if (!Number.isInteger(user_id))    return (document.getElementById("reservations-out").textContent = "user_id numérico");
-  if (!isDateTimeLike(start_raw) || !isDateTimeLike(end_raw))
-    return (document.getElementById("reservations-out").textContent = "Fechas inválidas (usa YYYY-MM-DD HH:mm)");
-  if (!isAfter(end_raw, start_raw))
-    return (document.getElementById("reservations-out").textContent = "La hora de fin debe ser posterior al inicio");
-  if (isPast(start_raw))
-    return (document.getElementById("reservations-out").textContent = "No puedes reservar en el pasado");
+  // 🔁 Normalizamos y convertimos a ISO con segundos (lo que espera FastAPI)
+  const start_iso = toIsoSecondFromInput(start_raw);   // "YYYY-MM-DDTHH:mm:00"
+  const end_iso   = toIsoSecondFromInput(end_raw);
 
-  const mins = minutesBetween(start_raw, end_raw);
-  if (mins <= 0 || mins > 180)
-    return (document.getElementById("reservations-out").textContent = "Duración inválida (máximo 180 minutos)");
+  // === Validaciones con toast ===
+  if (!Number.isInteger(amenity_id) || amenity_id < 1) {
+    out.textContent = ""; showToast("Ingresa un amenity_id válido", "error"); return;
+  }
+  if (!Number.isInteger(user_id) || user_id < 1) {
+    out.textContent = ""; showToast("Ingresa un user_id válido (o inicia sesión)", "error"); return;
+  }
+  if (!start_iso || !end_iso) {
+    out.textContent = ""; showToast("Fechas inválidas. Usa el selector.", "error"); return;
+  }
+  // Nuestras utilidades aceptan ISO (por parseDateInput), así que validamos directo
+  if (!isAfter(end_iso, start_iso)) {
+    out.textContent = ""; showToast("La hora de fin debe ser posterior al inicio", "error"); return;
+  }
+  if (isPast(start_iso)) {
+    out.textContent = ""; showToast("No puedes reservar en el pasado", "error"); return;
+  }
+  const mins = minutesBetween(start_iso, end_iso);
+  if (mins <= 0 || mins > 180) {
+    out.textContent = ""; showToast("Duración inválida (máx 180 minutos)", "error"); return;
+  }
 
   try {
-    const data = await api("/api/reservations", "POST", { amenity_id, user_id, start_at: start_raw, end_at: end_raw });
-    document.getElementById("reservations-out").textContent = `✅ Reserva creada\n${JSON.stringify(data, null, 2)}`;
+    const data = await api("/api/reservations", "POST", {
+      amenity_id,
+      user_id,
+      start_at: start_iso,  // ✅ ISO
+      end_at:   end_iso     // ✅ ISO
+    });
+    out.textContent = `✅ Reserva creada\n${JSON.stringify(data, null, 2)}`;
+    showToast("Reserva creada");
     listReservations();
   } catch (e) {
-    document.getElementById("reservations-out").textContent = e.message;
+    out.textContent = e.message;
+    showToast(e.message || "Error creando reserva", "error");
+    console.error("createReservation error:", e);
   }
 }
+
 async function listReservations() {
+  const out = document.getElementById("reservations-out"); // oculto; solo para errores
   try {
     const data = await api("/api/reservations");
-    const me = getCurrentUser();
+    const me   = getCurrentUser();
     const role = (me.role || localStorage.getItem("village_user_role") || "");
-    const items = role === "user" ? (data || []).filter((r) => r.user_id === me.id) : (data || []);
 
-    items.sort((a, b) => new Date(a.start_at) - new Date(b.start_at));
-    const upcoming = items.filter((r) => !isPast(r.end_at));
-    const past = items.filter((r) => isPast(r.end_at));
+    const items = role === "user"
+      ? (data || []).filter(r => r.user_id === me.id)
+      : (data || []);
 
-    const fmtLine = (r) => `• [#${r.id}] amenity:${r.amenity_id} — user:${r.user_id} — ${fmt(r.start_at)} → ${fmt(r.end_at)}`;
-    const upLines = upcoming.map(fmtLine).join("\n") || "—";
-    const paLines = past.map(fmtLine).join("\n") || "—";
-
-    const pretty = `Mis Reservas (${items.length})\n\nPróximas (${upcoming.length}):\n${upLines}\n\nPasadas (${past.length}):\n${paLines}\n\nJSON:\n${JSON.stringify(items, null, 2)}`;
-    document.getElementById("reservations-out").textContent = pretty;
+    renderReservations(items);
   } catch (e) {
-    document.getElementById("reservations-out").textContent = e.message;
+    if (out) { out.style.display = "block"; out.textContent = e.message; }
+    showToast(e.message || "Error listando reservas", "error");
+    console.error("listReservations error:", e);
   }
 }
+
+// Pinta tarjetas
+function renderReservations(items) {
+  const summaryEl = document.getElementById("res-summary");
+  const upWrap    = document.getElementById("res-upcoming");
+  const pastWrap  = document.getElementById("res-past");
+  const pastTitle = document.getElementById("res-past-title");
+
+  const sorted   = [...(items || [])].sort((a,b) => new Date(a.start_at) - new Date(b.start_at));
+  const upcoming = sorted.filter(r => !isPast(r.end_at));
+  const past     = sorted.filter(r =>  isPast(r.end_at));
+
+  if (summaryEl) {
+    summaryEl.textContent = `Mis reservas (${items.length}) — Próximas: ${upcoming.length} · Pasadas: ${past.length}`;
+  }
+
+  if (upWrap) {
+    upWrap.innerHTML = upcoming.map(reservationCardHTML).join("") || `<div class="muted small">—</div>`;
+  }
+
+  if (pastWrap) {
+    pastWrap.innerHTML = past.map(reservationCardHTML).join("");
+  }
+  if (pastTitle) {
+    pastTitle.style.display = past.length ? "block" : "none";
+  }
+}
+
+// Tarjeta HTML
+function reservationCardHTML(r) {
+  const status = (r.status || "pending").toLowerCase();
+  return `
+    <div class="res-card">
+      <div class="row space">
+        <span class="title">#${r.id} · Área común ${r.amenity_id}</span>
+        <span class="badge ${status}">${(r.status || "pending").toUpperCase()}</span>
+      </div>
+      <div class="small muted">Usuario: ${r.user_id}</div>
+      <div class="time">${fmt(r.start_at)} → ${fmt(r.end_at)}</div>
+      <div class="actions right">
+        <button class="ghost sm" onclick="cancelReservation(${r.id})">Cancelar</button>
+      </div>
+    </div>
+  `;
+}
+
+// Cancelar una reserva (requiere endpoint DELETE en tu API)
+async function cancelReservation(id) {
+  try {
+    await api(`/api/reservations/${id}`, "DELETE");
+    showToast("Reserva eliminada");
+    await listReservations();
+  } catch (e) {
+    showToast(e.message || "No se pudo eliminar la reserva", "error");
+  }
+}
+
+// Exponer helpers (si los necesitas en HTML)
+window.listReservations = listReservations;
+window.cancelReservation = cancelReservation;
+window.createReservation = createReservation;
+
+
+
+/* (Opcional recomendado) Limitar min de los inputs datetime-local al tiempo actual */
+document.addEventListener("DOMContentLoaded", () => {
+  const s = document.getElementById("res-start");
+  const e = document.getElementById("res-end");
+  if (s && e) {
+    const now = new Date(); now.setSeconds(0,0);
+    const minIso = now.toISOString().slice(0,16); // YYYY-MM-DDTHH:mm
+    s.min = minIso;
+    e.min = minIso; 
+  }
+});
+
+
+
+
+
+
 
 /* -------------------- TICKETS -------------------- */
 async function createTicket() {
@@ -611,8 +801,8 @@ window.createUnit = createUnit;
 window.listUnits = listUnits;
 window.deleteUnit = deleteUnit;
 
-window.createReservation = createReservation;
-window.listReservations = listReservations;
+//window.createReservation = createReservation;
+//window.listReservations = listReservations;
 
 window.createTicket = createTicket;
 window.listTickets = listTickets;
@@ -621,3 +811,4 @@ window.deleteTicket = deleteTicket;
 window.createPayment = createPayment;
 window.listPayments = listPayments;
 window.deletePayment = deletePayment;
+

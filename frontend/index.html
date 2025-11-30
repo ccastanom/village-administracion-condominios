@@ -182,10 +182,10 @@
                 <input id="res-user" placeholder="ej. 2" />
               </label>
               <label>Inicio
-                <input id="res-start" placeholder="YYYY-MM-DD HH:MM" />
+                <input id="res-start" type="datetime-local" step="60" />
               </label>
               <label>Fin
-                <input id="res-end" placeholder="YYYY-MM-DD HH:MM" />
+                <input id="res-end" type="datetime-local" step="60" />
               </label>
             </div>
             <div class="actions">
@@ -193,12 +193,26 @@
             </div>
           </div>
 
+          <!-- LISTADO remodelado -->
           <div class="card">
             <h3>Listado</h3>
             <div class="actions">
               <button class="ghost" onclick="listReservations()">Refrescar</button>
             </div>
-            <pre id="reservations-out" class="output"></pre>
+
+            <!-- Resumen -->
+            <div id="res-summary" class="muted" style="margin-bottom:8px"></div>
+
+            <!-- Próximas -->
+            <h4 class="muted" id="res-upcoming-title" style="margin:6px 0">Próximas</h4>
+            <div id="res-upcoming" class="cards-grid"></div>
+
+            <!-- Pasadas -->
+            <h4 class="muted" id="res-past-title" style="margin:16px 0 6px; display:none">Pasadas</h4>
+            <div id="res-past" class="cards-grid"></div>
+
+            <!-- Área técnica (oculta) para errores -->
+            <pre id="reservations-out" class="output" style="display:none"></pre>
           </div>
         </div>
       </section>
@@ -304,7 +318,7 @@
       </section>
     </main>
 
-    <script src="./app.js?v=toast12"></script>
+    <script src="./app.js?v=toast15"></script>
     <div id="toast" class="toast hidden"></div>
   </body>
 </html>
